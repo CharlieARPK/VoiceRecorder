@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Share2, Trash2, Download, Music, Disc } from 'lucide-react';
+import { ArrowLeft, Share2, Trash2, Download } from 'lucide-react';
 
 export default function SavedRecordingsPage({ recordings, onDeleteRecording, onBackToStudio }) {
   const handleShare = async (rec) => {
@@ -35,31 +35,29 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
       <div className="flex items-center justify-between mb-6 border-b border-[#30363d] pb-4">
         <button
           onClick={onBackToStudio}
-          className="btn-green py-2 px-4 text-sm flex items-center gap-2 cursor-pointer shadow-md"
+          className="btn-green py-2 px-5 text-sm flex items-center gap-2 cursor-pointer shadow-md font-bold"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>スタジオ画面に戻る</span>
+          <span>スタジオに戻る</span>
         </button>
-        <span className="text-sm font-mono text-gray-400">
-          全 {recordings.length} トラック
+        <span className="text-sm font-mono text-gray-400 font-bold">
+          {recordings.length} トラック
         </span>
       </div>
 
       <div className="hardware-card mb-6">
-        <h2 className="text-xl font-bold font-sans text-white flex items-center gap-2.5 pb-3 border-b border-[#30363d] mb-6 text-left">
-          <Disc className="w-6 h-6 text-emerald-400 animate-spin-slow" />
-          <span>保存した録音ライブラリ</span>
+        <h2 className="text-xl font-bold font-sans text-white pb-3 border-b border-[#30363d] mb-6 text-left">
+          保存した録音ライブラリ
         </h2>
 
         {recordings.length === 0 ? (
-          <div className="py-16 text-center text-gray-500 bg-[#0b0e14] rounded-2xl border border-[#30363d]">
-            <p className="text-base font-bold text-gray-400 mb-2">保存された録音がありません</p>
-            <p className="text-sm">スタジオ画面に戻って、録音・保存ボタンを押すとここに一覧表示されます。</p>
+          <div className="py-16 text-center text-gray-400 bg-[#0b0e14] rounded-2xl border border-[#30363d]">
+            <p className="text-base font-bold text-gray-300 mb-2">保存された録音がありません</p>
             <button
               onClick={onBackToStudio}
-              className="mt-6 btn-green py-2 px-6 text-sm"
+              className="mt-4 btn-green py-2 px-6 text-sm font-bold"
             >
-              録音しに行く
+              スタジオへ戻る
             </button>
           </div>
         ) : (
@@ -73,16 +71,16 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
                   <div>
                     <h3 className="font-bold text-white text-lg tracking-wide">{rec.title}</h3>
                     <div className="flex items-center gap-3 text-xs font-mono text-gray-400 mt-1">
-                      <span>🕒 {rec.date}</span>
-                      <span>⏱️ 録音時間: {Math.floor(rec.duration / 60)}分{(rec.duration % 60).toString().padStart(2, '0')}秒</span>
-                      <span className="uppercase bg-[#21262d] px-2 py-0.5 rounded text-gray-300">{rec.fileExt}</span>
+                      <span>{rec.date}</span>
+                      <span>⏱️ {Math.floor(rec.duration / 60)}分{(rec.duration % 60).toString().padStart(2, '0')}秒</span>
+                      <span className="uppercase bg-[#21262d] px-2 py-0.5 rounded text-gray-200 font-bold">{rec.fileExt}</span>
                     </div>
                   </div>
 
                   <button
                     onClick={() => onDeleteRecording(rec.id)}
-                    className="text-gray-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors"
-                    title="この録音を削除"
+                    className="text-gray-400 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                    title="削除"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
@@ -93,23 +91,23 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
                   <audio src={rec.url} controls className="w-full h-11 accent-emerald-500" />
                 </div>
 
-                {/* Download and LINE share buttons */}
+                {/* Download and LINE share buttons (High contrast bright white/light text, zero blue links!) */}
                 <div className="flex flex-wrap justify-end items-center gap-3 pt-3 border-t border-[#30363d]">
                   <a
                     href={rec.url}
                     download={`${rec.title}.${rec.fileExt}`}
-                    className="px-4 py-2 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-gray-300 hover:text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors border border-[#30363d]"
+                    className="px-4 py-2.5 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-white hover:text-white text-xs font-bold inline-flex items-center gap-1.5 transition-colors border border-[#30363d] shadow-sm cursor-pointer no-underline"
                   >
                     <Download className="w-4 h-4" />
-                    <span>端末へダウンロード ({rec.fileExt?.toUpperCase()})</span>
+                    <span>ダウンロード ({rec.fileExt?.toUpperCase()})</span>
                   </a>
 
                   <button
                     onClick={() => handleShare(rec)}
-                    className="btn-green py-2 px-5 text-xs font-bold flex items-center gap-2 shadow-md cursor-pointer"
+                    className="btn-green py-2.5 px-5 text-xs font-bold flex items-center gap-2 shadow-md cursor-pointer"
                   >
                     <Share2 className="w-4 h-4" />
-                    <span>LINEで友達へ送信 / 共有</span>
+                    <span>LINEで送信</span>
                   </button>
                 </div>
               </div>

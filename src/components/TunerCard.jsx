@@ -107,7 +107,7 @@ export default function TunerCard() {
       setIsListening(true);
       updateTuner();
     } catch (err) {
-      alert("チューナーを使用するにはマイクへのアクセスを許可してください。");
+      alert("マイクへのアクセスを許可してください。");
     }
   };
 
@@ -138,87 +138,61 @@ export default function TunerCard() {
     };
   }, []);
 
-  // Exact Tuning logic:
-  // In tune: -12 <= cents <= 12
-  // Flat (低い): cents < -12
-  // Sharp (高い): cents > 12
-  const inTune = pitch !== null && Math.abs(cents) <= 12;
-  const isFlat = pitch !== null && cents < -12;
-  const isSharp = pitch !== null && cents > 12;
+  const inTune = pitch !== null && Math.abs(cents) <= 6;
+  const isFlat = pitch !== null && cents < -6;
+  const isSharp = pitch !== null && cents > 6;
 
   const activeColor = !pitch ? "#6e7681" : inTune ? "#10b981" : "#ef4444";
-  const needleRotation = !pitch ? 0 : Math.max(-50, Math.min(50, (cents / 50) * 50));
+  const needleRotation = !pitch ? 0 : Math.max(-48, Math.min(48, (cents / 50) * 48));
 
   return (
     <div className="hardware-card mb-6 text-center relative">
-      {/* Card Header: 「チューナー」 */}
-      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-5 text-left">
-        <h2 className="text-xl font-bold font-sans tracking-wide text-white flex items-center gap-2.5">
-          <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-          <span>チューナー</span>
-        </h2>
+      {/* Exact Header: チューナー */}
+      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-6 text-left">
+        <h2 className="text-xl font-bold font-sans text-white">チューナー</h2>
         <button
           onClick={toggleListening}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 cursor-pointer ${
+          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 cursor-pointer ${
             isListening 
               ? 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30' 
               : 'bg-[#21262d] text-gray-300 border-[#30363d] hover:text-white'
           }`}
         >
           {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-          <span>{isListening ? "チューナー停止" : "チューナー起動"}</span>
+          <span>{isListening ? "停止" : "起動"}</span>
         </button>
       </div>
 
       {/* Screen Box with Arc Indicator & Flat/Sharp Triangles */}
-      <div className="screen-box p-6 pt-8 pb-5 mb-4 relative min-h-[190px] flex flex-col justify-end items-center">
+      <div className="screen-box p-6 pt-10 pb-6 mb-5 relative min-h-[190px] flex flex-col justify-end items-center">
         
-        {/* Tuning Status Badge Top Center */}
-        {pitch && (
-          <div className="absolute top-3 left-0 right-0 flex justify-center">
-            <span 
-              className={`px-3 py-0.5 rounded-full text-xs font-mono font-bold tracking-wider ${
-                inTune 
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_#10b981]' 
-                  : isFlat 
-                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' 
-                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-              }`}
-            >
-              {inTune ? '★ ピッチぴったり (Exact) ★' : isFlat ? '◀ 低い (FLAT)' : '高い (SHARP) ▶'}
-            </span>
-          </div>
-        )}
-
         {/* Circular Arc & Indicator Navigation */}
-        <div className="w-full max-w-sm relative h-24 flex justify-center items-end">
+        <div className="w-full max-w-xs relative h-24 flex justify-center items-end">
           
-          {/* Left triangle (▶ / ◄ Flat indicator) */}
+          {/* Left triangle ▶ right next to left of arc indicator */}
           <div 
-            className={`absolute left-4 bottom-8 flex flex-col items-center transition-all duration-150 ${
+            className={`absolute left-8 bottom-6 flex flex-col items-center transition-all duration-150 ${
               isFlat 
-                ? 'text-rose-500 scale-125 drop-shadow-[0_0_8px_#ef4444] font-bold' 
+                ? 'text-rose-500 scale-125 drop-shadow-[0_0_10px_#ef4444] font-bold' 
                 : inTune && pitch 
                   ? 'text-emerald-400 font-bold' 
-                  : 'text-gray-600'
+                  : 'text-gray-700'
             }`}
           >
             <span className="text-3xl font-mono leading-none">▶</span>
-            <span className="text-[10px] uppercase font-mono mt-0.5">低い (♭)</span>
           </div>
 
-          {/* Right triangle (◀ / ► Sharp indicator) */}
+          {/* Right triangle ◀ right next to right of arc indicator */}
           <div 
-            className={`absolute right-4 bottom-8 flex flex-col items-center transition-all duration-150 ${
+            className={`absolute right-8 bottom-6 flex flex-col items-center transition-all duration-150 ${
               isSharp 
-                ? 'text-rose-500 scale-125 drop-shadow-[0_0_8px_#ef4444] font-bold' 
+                ? 'text-rose-500 scale-125 drop-shadow-[0_0_10px_#ef4444] font-bold' 
                 : inTune && pitch 
                   ? 'text-emerald-400 font-bold' 
-                  : 'text-gray-600'
+                  : 'text-gray-700'
             }`}
           >
             <span className="text-3xl font-mono leading-none">◀</span>
-            <span className="text-[10px] uppercase font-mono mt-0.5">高い (♯)</span>
           </div>
 
           {/* Circular Arc (`円弧`) */}
@@ -226,10 +200,10 @@ export default function TunerCard() {
             className="tuner-arc w-3/5 absolute bottom-4 flex justify-center"
             style={{ borderTopColor: pitch ? activeColor : '#30363d' }}
           >
-            {/* Center target indicator (真ん中の適正マーク) */}
+            {/* Center target exact indicator */}
             <div 
               className={`w-1.5 h-4 absolute -top-4 rounded-full transition-all ${
-                inTune ? 'bg-emerald-400 shadow-[0_0_12px_#10b981]' : 'bg-gray-500'
+                inTune ? 'bg-emerald-400 shadow-[0_0_12px_#10b981]' : 'bg-gray-600'
               }`}
             />
           </div>
@@ -255,15 +229,15 @@ export default function TunerCard() {
             {noteName}
           </span>
           {pitch && (
-            <span className="text-sm font-mono text-gray-300 ml-1">
-              {pitch} Hz <span className="text-xs">({cents > 0 ? `+${cents}` : cents} cents)</span>
+            <span className="text-sm font-mono text-gray-400 ml-1">
+              {pitch} Hz
             </span>
           )}
         </div>
       </div>
 
-      {/* Editable A4 reference frequency */}
-      <div className="flex items-center justify-center gap-2.5 text-base font-mono">
+      {/* Reference frequency (no extra words) */}
+      <div className="flex items-center justify-center gap-2 text-base font-mono">
         <input
           type="number"
           value={a4Freq}
@@ -271,7 +245,6 @@ export default function TunerCard() {
           className="w-20 bg-[#0b0e14] border border-[#30363d] rounded-lg px-2 py-1 text-center font-bold text-white focus:border-emerald-500 outline-none"
         />
         <span className="text-gray-300 font-sans font-bold">Hz</span>
-        <span className="text-xs text-gray-400 font-sans">（ここは編集可能・基準ピッチ）</span>
       </div>
     </div>
   );

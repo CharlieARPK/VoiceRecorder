@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Square, Mic, FolderOpen, Disc } from 'lucide-react';
+import { Square } from 'lucide-react';
 
 export default function RecorderCard({ onSaveRecording, recordingsCount, onNavigateToLibrary }) {
   const [isRecording, setIsRecording] = useState(false);
@@ -78,7 +78,7 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      waveformHistoryRef.current = new Array(150).fill(0.02); // Initialize flat history
+      waveformHistoryRef.current = new Array(150).fill(0.02);
 
       recorder.start(100);
       setIsRecording(true);
@@ -122,15 +122,13 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       animationIdRef.current = requestAnimationFrame(draw);
       analyser.getFloatTimeDomainData(dataArray);
 
-      // Calculate peak amplitude for this frame
       let peak = 0;
       for (let i = 0; i < bufferLength; i++) {
         const abs = Math.abs(dataArray[i]);
         if (abs > peak) peak = abs;
       }
       
-      // Scale amplitude nicely (horizontal time vs vertical amplitude)
-      const scaledAmp = Math.min(1.0, Math.max(0.03, peak * 3.5));
+      const scaledAmp = Math.min(1.0, Math.max(0.02, peak * 3.5));
       waveformHistoryRef.current.push(scaledAmp);
       if (waveformHistoryRef.current.length > 150) {
         waveformHistoryRef.current.shift();
@@ -139,7 +137,6 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       ctx.fillStyle = '#0b0e14';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw center axis line
       ctx.strokeStyle = '#21262d';
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -147,7 +144,6 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       ctx.lineTo(canvas.width, canvas.height / 2);
       ctx.stroke();
 
-      // Draw time-domain amplitude history (横軸時間、縦軸振幅)
       const barWidth = canvas.width / waveformHistoryRef.current.length;
       const centerY = canvas.height / 2;
 
@@ -156,9 +152,8 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
         const barHeight = (amp * canvas.height * 0.85);
         const x = i * barWidth;
 
-        // Gradient from center outwards
         ctx.fillStyle = i === waveformHistoryRef.current.length - 1 ? '#34d399' : '#10b981';
-        ctx.fillRect(x, centerY - barHeight / 2, Math.max(1, barWidth - 1), barHeight);
+        ctx.fillRect(x, centerY - barHeight / 2, Math.max(1.5, barWidth - 1), barHeight);
       }
     };
 
@@ -183,12 +178,9 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
 
   return (
     <div className="hardware-card mb-6 text-center">
-      {/* 1. Card Header: 「録音」 */}
-      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-5 text-left">
-        <h2 className="text-xl font-bold font-sans tracking-wide text-white flex items-center gap-2.5">
-          <span className="w-3 h-3 rounded-full bg-rose-500 inline-block animate-pulse"></span>
-          <span>録音</span>
-        </h2>
+      {/* Exact Card Header: 録音 */}
+      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-6 text-left">
+        <h2 className="text-xl font-bold font-sans text-white">録音</h2>
         {isRecording && (
           <span className="bg-rose-600/90 text-white text-xs font-mono px-3 py-1 rounded-full font-bold animate-pulse">
             REC {formatTime(recordingTime)}
@@ -196,30 +188,26 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
         )}
       </div>
 
-      {/* 2. Big Prominent Recording Button (録音ボタンをもっと大きく！) */}
-      <div className="flex flex-col items-center justify-center my-4">
+      {/* HUGE Prominent Recording Button (w-28 h-28 / w-32 h-32) exactly like image.png */}
+      <div className="flex justify-center my-6">
         <button
           onClick={isRecording ? stopRecording : startRecording}
-          title={isRecording ? "録音停止" : "録音スタート"}
-          className={`w-24 h-24 rounded-full flex flex-col items-center justify-center transition-all shadow-xl cursor-pointer ${
+          className={`w-28 h-28 rounded-full flex items-center justify-center transition-all shadow-2xl cursor-pointer ${
             isRecording 
-              ? 'bg-rose-600 animate-pulse ring-8 ring-rose-500/30 hover:bg-rose-700' 
-              : 'bg-rose-600 hover:bg-rose-500 active:scale-95 shadow-[0_0_20px_rgba(225,29,72,0.4)]'
+              ? 'bg-rose-600 animate-pulse ring-8 ring-rose-500/30' 
+              : 'bg-[#ef4444] hover:bg-[#dc2626] active:scale-95 shadow-[0_0_25px_rgba(239,68,68,0.4)]'
           }`}
         >
           {isRecording ? (
-            <Square className="w-10 h-10 text-white fill-white" />
+            <Square className="w-12 h-12 text-white fill-white" />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-white shadow-inner" />
+            <div className="w-12 h-12 rounded-full bg-white shadow-inner" />
           )}
         </button>
-        <span className="mt-2.5 text-xs font-bold text-gray-400 tracking-wider">
-          {isRecording ? "タップで停止＆保存準備" : "タップで録音開始"}
-        </span>
       </div>
 
-      {/* 3. Time-Domain Amplitude Waveform Graph (横軸時間、縦軸振幅のグラフ) */}
-      <div className="screen-box h-44 relative mb-4 flex items-center justify-center">
+      {/* Screen Box (ここに波形) */}
+      <div className="screen-box h-44 relative mb-5 flex items-center justify-center">
         <canvas
           ref={canvasRef}
           width={550}
@@ -227,18 +215,10 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
           className="w-full h-full block"
         />
 
-        {!isRecording && !tempRecording && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0b0e14]/90 text-gray-500 font-mono text-xs pointer-events-none p-4 text-center">
-            <span className="text-sm font-bold text-gray-400 mb-1">【 音声波形モニター 】</span>
-            <span>横軸：経過時間 ／ 縦軸：音声振幅（音量の強弱）</span>
-            <span className="text-gray-600 mt-1">※上の赤色ボタンを押すとリアルタイム波形描画が始まります</span>
-          </div>
-        )}
-
         {tempRecording && !isRecording && (
           <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4">
-            <span className="text-emerald-400 font-bold text-sm mb-2 flex items-center gap-1.5">
-              <span>✓ 録音完了（{formatTime(tempRecording.duration)}）</span>
+            <span className="text-emerald-400 font-bold text-sm mb-2">
+              ✓ {formatTime(tempRecording.duration)}
             </span>
             <audio src={tempRecording.url} controls className="w-11/12 max-w-sm h-10 accent-emerald-500" />
           </div>
@@ -252,26 +232,25 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
           type="text"
           value={fileName}
           onChange={(e) => setFileName(e.target.value)}
-          placeholder={tempRecording ? tempRecording.title : "例: アコギ新曲リフ_01"}
+          placeholder={tempRecording ? tempRecording.title : ""}
           className="flex-grow bg-[#0b0e14] border border-[#30363d] rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none transition-colors font-mono"
         />
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+      <div className="flex justify-between items-center gap-3">
         <button
           onClick={handleSave}
           disabled={!tempRecording}
-          className="btn-green flex-1 w-full py-3.5 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-green flex-1 py-3.5 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
         >
           保存
         </button>
         <button
           onClick={onNavigateToLibrary}
-          className="btn-green flex-1 w-full py-3.5 text-sm font-bold flex items-center justify-center gap-2"
+          className="btn-green flex-1 py-3.5 text-sm font-bold flex items-center justify-center gap-2"
         >
-          <FolderOpen className="w-4 h-4" />
-          <span>録音した音声を確認 ({recordingsCount}) ➔</span>
+          <span>録音した音声を確認</span>
         </button>
       </div>
     </div>
