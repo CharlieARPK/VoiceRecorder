@@ -138,58 +138,116 @@ export default function TunerCard() {
     };
   }, []);
 
-  // Tuner bar behavior: Red when out of range, turns Green when within +/- 15 cents
-  const inTune = pitch !== null && Math.abs(cents) <= 15;
+  // Exact Tuning logic:
+  // In tune: -12 <= cents <= 12
+  // Flat (低い): cents < -12
+  // Sharp (高い): cents > 12
+  const inTune = pitch !== null && Math.abs(cents) <= 12;
+  const isFlat = pitch !== null && cents < -12;
+  const isSharp = pitch !== null && cents > 12;
+
   const activeColor = !pitch ? "#6e7681" : inTune ? "#10b981" : "#ef4444";
-  const needleRotation = Math.max(-45, Math.min(45, (cents / 50) * 45));
+  const needleRotation = !pitch ? 0 : Math.max(-50, Math.min(50, (cents / 50) * 50));
 
   return (
     <div className="hardware-card mb-6 text-center relative">
-      <button
-        onClick={toggleListening}
-        className={`absolute top-4 right-4 p-2 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 ${
-          isListening 
-            ? 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30' 
-            : 'bg-[#21262d] text-gray-400 border-[#30363d] hover:text-white'
-        }`}
-      >
-        {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-        <span>{isListening ? "チューナー停止" : "チューナー起動"}</span>
-      </button>
+      {/* Card Header: 「チューナー」 */}
+      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-5 text-left">
+        <h2 className="text-xl font-bold font-sans tracking-wide text-white flex items-center gap-2.5">
+          <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+          <span>チューナー</span>
+        </h2>
+        <button
+          onClick={toggleListening}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 cursor-pointer ${
+            isListening 
+              ? 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30' 
+              : 'bg-[#21262d] text-gray-300 border-[#30363d] hover:text-white'
+          }`}
+        >
+          {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+          <span>{isListening ? "チューナー停止" : "チューナー起動"}</span>
+        </button>
+      </div>
 
-      {/* Screen box with curved gauge exactly like image.png */}
-      <div className="screen-box p-6 pt-10 pb-4 mb-4 relative min-h-[160px] flex flex-col justify-end items-center">
-        {/* Left and Right arrows (► ... ◄) and center tick */}
-        <div className="w-4/5 relative h-20 flex justify-center items-end">
-          <span className="absolute left-0 bottom-8 text-gray-500 font-mono text-lg font-bold">►</span>
-          <span className="absolute right-0 bottom-8 text-gray-500 font-mono text-lg font-bold">◄</span>
+      {/* Screen Box with Arc Indicator & Flat/Sharp Triangles */}
+      <div className="screen-box p-6 pt-8 pb-5 mb-4 relative min-h-[190px] flex flex-col justify-end items-center">
+        
+        {/* Tuning Status Badge Top Center */}
+        {pitch && (
+          <div className="absolute top-3 left-0 right-0 flex justify-center">
+            <span 
+              className={`px-3 py-0.5 rounded-full text-xs font-mono font-bold tracking-wider ${
+                inTune 
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-[0_0_10px_#10b981]' 
+                  : isFlat 
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40' 
+                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+              }`}
+            >
+              {inTune ? '★ ピッチぴったり (Exact) ★' : isFlat ? '◀ 低い (FLAT)' : '高い (SHARP) ▶'}
+            </span>
+          </div>
+        )}
+
+        {/* Circular Arc & Indicator Navigation */}
+        <div className="w-full max-w-sm relative h-24 flex justify-center items-end">
           
-          {/* Curved Arc */}
+          {/* Left triangle (▶ / ◄ Flat indicator) */}
           <div 
-            className="tuner-arc w-full absolute bottom-4 flex justify-center"
+            className={`absolute left-4 bottom-8 flex flex-col items-center transition-all duration-150 ${
+              isFlat 
+                ? 'text-rose-500 scale-125 drop-shadow-[0_0_8px_#ef4444] font-bold' 
+                : inTune && pitch 
+                  ? 'text-emerald-400 font-bold' 
+                  : 'text-gray-600'
+            }`}
+          >
+            <span className="text-3xl font-mono leading-none">▶</span>
+            <span className="text-[10px] uppercase font-mono mt-0.5">低い (♭)</span>
+          </div>
+
+          {/* Right triangle (◀ / ► Sharp indicator) */}
+          <div 
+            className={`absolute right-4 bottom-8 flex flex-col items-center transition-all duration-150 ${
+              isSharp 
+                ? 'text-rose-500 scale-125 drop-shadow-[0_0_8px_#ef4444] font-bold' 
+                : inTune && pitch 
+                  ? 'text-emerald-400 font-bold' 
+                  : 'text-gray-600'
+            }`}
+          >
+            <span className="text-3xl font-mono leading-none">◀</span>
+            <span className="text-[10px] uppercase font-mono mt-0.5">高い (♯)</span>
+          </div>
+
+          {/* Circular Arc (`円弧`) */}
+          <div 
+            className="tuner-arc w-3/5 absolute bottom-4 flex justify-center"
             style={{ borderTopColor: pitch ? activeColor : '#30363d' }}
           >
-            {/* Top center mark */}
+            {/* Center target indicator (真ん中の適正マーク) */}
             <div 
-              className="w-1 h-3 absolute -top-3 rounded-full" 
-              style={{ backgroundColor: activeColor }}
+              className={`w-1.5 h-4 absolute -top-4 rounded-full transition-all ${
+                inTune ? 'bg-emerald-400 shadow-[0_0_12px_#10b981]' : 'bg-gray-500'
+              }`}
             />
           </div>
 
-          {/* Dynamic Needle */}
+          {/* Dynamic Indicator Needle moving across the arc */}
           <div
-            className="w-1 h-16 rounded-full origin-bottom tuner-needle z-10 absolute bottom-4"
+            className="w-1.5 h-20 rounded-full origin-bottom tuner-needle z-10 absolute bottom-4 transition-transform duration-100 ease-out"
             style={{
               backgroundColor: activeColor,
               transform: `rotate(${needleRotation}deg)`,
-              boxShadow: pitch ? `0 0 12px ${activeColor}` : 'none'
+              boxShadow: pitch ? `0 0 14px ${activeColor}` : 'none'
             }}
           />
-          <div className="w-3 h-3 rounded-full bg-gray-600 border-2 border-[#161b22] absolute bottom-3 z-20" />
+          <div className="w-4 h-4 rounded-full bg-gray-300 border-4 border-[#161b22] absolute bottom-2 z-20" />
         </div>
 
-        {/* Big Note Display right below the gauge */}
-        <div className="mt-2 flex items-baseline justify-center gap-1">
+        {/* Note Display below the gauge */}
+        <div className="mt-3 flex items-baseline justify-center gap-2">
           <span
             className="text-6xl font-bold font-mono tracking-tight transition-colors duration-150"
             style={{ color: activeColor }}
@@ -197,23 +255,23 @@ export default function TunerCard() {
             {noteName}
           </span>
           {pitch && (
-            <span className="text-sm font-mono text-gray-400 ml-2">
-              {pitch} Hz ({cents > 0 ? `+${cents}` : cents})
+            <span className="text-sm font-mono text-gray-300 ml-1">
+              {pitch} Hz <span className="text-xs">({cents > 0 ? `+${cents}` : cents} cents)</span>
             </span>
           )}
         </div>
       </div>
 
-      {/* Editable A4 frequency below exactly like image.png */}
-      <div className="flex items-center justify-center gap-2 text-base font-mono">
+      {/* Editable A4 reference frequency */}
+      <div className="flex items-center justify-center gap-2.5 text-base font-mono">
         <input
           type="number"
           value={a4Freq}
           onChange={(e) => setA4Freq(Number(e.target.value) || 440)}
-          className="w-20 bg-[#0b0e14] border border-[#30363d] rounded px-2 py-1 text-center font-bold text-white focus:border-emerald-500 outline-none"
+          className="w-20 bg-[#0b0e14] border border-[#30363d] rounded-lg px-2 py-1 text-center font-bold text-white focus:border-emerald-500 outline-none"
         />
-        <span className="text-gray-300 font-sans">Hz</span>
-        <span className="text-sm text-gray-500 font-sans">（ここは編集可能）</span>
+        <span className="text-gray-300 font-sans font-bold">Hz</span>
+        <span className="text-xs text-gray-400 font-sans">（ここは編集可能・基準ピッチ）</span>
       </div>
     </div>
   );

@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import RecorderCard from './components/RecorderCard';
 import TunerCard from './components/TunerCard';
 import MetronomeCard from './components/MetronomeCard';
-import SavedRecordingsModal from './components/SavedRecordingsModal';
+import SavedRecordingsPage from './components/SavedRecordingsPage';
 import './App.css';
 
 export default function App() {
   const [recordings, setRecordings] = useState([]);
-  const [isSavedListOpen, setIsSavedListOpen] = useState(false);
+  const [currentTab, setCurrentTab] = useState('studio'); // 'studio' | 'library'
 
   const handleSaveRecording = (newTrack) => {
     setRecordings((prev) => [newTrack, ...prev]);
@@ -26,26 +26,28 @@ export default function App() {
         </h1>
       </header>
 
-      {/* Top Section: Recorder */}
-      <RecorderCard
-        onSaveRecording={handleSaveRecording}
-        recordingsCount={recordings.length}
-        onOpenSavedList={() => setIsSavedListOpen(true)}
-      />
+      {currentTab === 'studio' ? (
+        <>
+          {/* Top Section: Recorder */}
+          <RecorderCard
+            onSaveRecording={handleSaveRecording}
+            recordingsCount={recordings.length}
+            onNavigateToLibrary={() => setCurrentTab('library')}
+          />
 
-      {/* Middle Section: Tuner */}
-      <TunerCard />
+          {/* Middle Section: Tuner */}
+          <TunerCard />
 
-      {/* Bottom Section: Metronome */}
-      <MetronomeCard />
-
-      {/* Saved Tracks Modal */}
-      <SavedRecordingsModal
-        isOpen={isSavedListOpen}
-        onClose={() => setIsSavedListOpen(false)}
-        recordings={recordings}
-        onDeleteRecording={handleDeleteRecording}
-      />
+          {/* Bottom Section: Metronome */}
+          <MetronomeCard />
+        </>
+      ) : (
+        <SavedRecordingsPage
+          recordings={recordings}
+          onDeleteRecording={handleDeleteRecording}
+          onBackToStudio={() => setCurrentTab('studio')}
+        />
+      )}
     </div>
   );
 }
