@@ -105,92 +105,98 @@ export default function MetronomeCard() {
   }, []);
 
   return (
-    <div className="hardware-card text-center relative">
-      {/* Exact Header: メトロノーム */}
-      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-6 text-left">
-        <h2 className="text-xl font-bold font-sans text-white">メトロノーム</h2>
+    <div className="hardware-card">
+      <div className="card-header">
+        <h2 className="card-title">メトロノーム</h2>
       </div>
 
-      {/* Real Mechanical Metronome Pendulum Rod (棒が左右に動く) */}
-      <div className="screen-box h-36 mb-6 relative flex flex-col justify-end items-center overflow-hidden py-3">
-        <div className="absolute bottom-2 w-36 h-28 border-b-4 border-l-2 border-r-2 border-[#30363d] rounded-t-3xl opacity-40 pointer-events-none" />
-        <div className="absolute bottom-3 w-0.5 h-24 bg-[#21262d] pointer-events-none" />
+      {/* Real Mechanical Metronome Pendulum Rod drawn on bulletproof SVG (`棒が左右に動く`) */}
+      <div className="screen-box" style={{ padding: '16px', marginBottom: '20px' }}>
+        <svg viewBox="0 0 400 190" style={{ width: '100%', maxWidth: '380px', margin: '0 auto', display: 'block' }}>
+          
+          {/* Metronome Housing Outline */}
+          <polygon points="130,170 270,170 230,20 170,20" fill="#161b22" stroke="#30363d" strokeWidth="4" />
+          
+          {/* Center Vertical Scale Line */}
+          <line x1="200" y1="25" x2="200" y2="165" stroke="#21262d" strokeWidth="2" />
 
-        {/* The Swinging Rod (`棒`) */}
-        <div 
-          className="w-1.5 h-28 rounded-full origin-bottom z-10 absolute bottom-3 transition-transform duration-200 ease-in-out shadow-lg"
-          style={{
-            backgroundColor: isPlaying ? '#10b981' : '#6e7681',
-            transform: `rotate(${pendulumAngle}deg)`,
-            boxShadow: isPlaying ? '0 0 16px #10b981' : 'none'
-          }}
-        >
-          <div className="w-5 h-6 bg-gray-200 border-2 border-gray-700 rounded-md shadow-md absolute -left-1.5 top-8 flex items-center justify-center">
-            <div className="w-2 h-0.5 bg-gray-500" />
-          </div>
-        </div>
+          {/* Swinging Pendulum Rod around pivot (200, 160) */}
+          <g style={{ transform: `rotate(${pendulumAngle}deg)`, transformOrigin: '200px 160px', transition: 'transform 0.16s ease-in-out' }}>
+            <line x1="200" y1="160" x2="200" y2="25" stroke={isPlaying ? "#10b981" : "#6e7681"} strokeWidth="6" strokeLinecap="round" />
+            
+            {/* Sliding Bob Weight on the Rod */}
+            <rect x="185" y="65" width="30" height="24" rx="4" fill="#e5e7eb" stroke="#1f2937" strokeWidth="3" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }} />
+            <line x1="188" y1="77" x2="212" y2="77" stroke="#4b5563" strokeWidth="2" />
+          </g>
 
-        <div className="w-5 h-5 rounded-full bg-gray-400 border-4 border-[#0b0e14] absolute bottom-2 z-20 shadow" />
+          {/* Bottom Pivot Hinge */}
+          <circle cx="200" cy="160" r="10" fill="#9ca3af" stroke="#0b0e14" strokeWidth="4" />
+        </svg>
       </div>
 
-      {/* (-) [ 90 ] (+) right next to numeric input (プラスマイナスは数字の横に) */}
-      <div className="flex items-center justify-center gap-1.5 mb-6">
+      {/* (-) [ 90 ] (+) right next to numeric input (100% side-by-side row via .row-nowrap) */}
+      <div className="row-nowrap">
         <button
           onClick={() => setBpm(Math.max(30, bpm - 1))}
-          className="w-10 h-10 rounded-xl bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-white flex items-center justify-center transition-colors font-bold text-lg cursor-pointer active:scale-95"
+          className="btn-plus-minus"
           title="-1"
         >
-          <Minus className="w-5 h-5" />
+          <Minus style={{ width: '22px', height: '22px' }} />
         </button>
 
-        <div className="flex items-baseline gap-1.5 px-3 bg-[#0b0e14] border border-[#30363d] rounded-xl py-1">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0b0e14', border: '1px solid #30363d', borderRadius: '14px', padding: '6px 16px' }}>
           <input
             type="number"
             min="30"
             max="300"
             value={bpm}
             onChange={(e) => setBpm(Math.max(30, Math.min(300, Number(e.target.value) || 90)))}
-            className="w-20 bg-transparent text-center text-3xl font-mono font-bold text-white focus:text-emerald-400 outline-none transition-colors"
+            style={{ width: '76px', background: 'transparent', border: 'none', color: '#ffffff', fontSize: '32px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace', outline: 'none' }}
           />
-          <span className="text-sm font-bold text-gray-300 pr-1">BPM</span>
+          <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#9ca3af' }}>BPM</span>
         </div>
 
         <button
           onClick={() => setBpm(Math.min(300, bpm + 1))}
-          className="w-10 h-10 rounded-xl bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] text-white flex items-center justify-center transition-colors font-bold text-lg cursor-pointer active:scale-95"
+          className="btn-plus-minus"
           title="+1"
         >
-          <Plus className="w-5 h-5" />
+          <Plus style={{ width: '22px', height: '22px' }} />
         </button>
       </div>
 
       {/* Beat indicators */}
-      <div className="flex justify-center gap-4 mb-6">
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', margin: '20px 0' }}>
         {Array.from({ length: beatsPerMeasure }).map((_, idx) => {
           const active = currentBeat === idx;
           return (
             <div
               key={idx}
-              className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                active
-                  ? idx === 0 
-                    ? 'bg-rose-500 scale-125 shadow-[0_0_12px_#ef4444]' 
-                    : 'bg-emerald-500 scale-125 shadow-[0_0_12px_#10b981]'
-                  : 'bg-[#21262d] border border-[#30363d]'
-              }`}
-            >
-              {active && <div className="w-2.5 h-2.5 rounded-full bg-white" />}
-            </div>
+              style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: active ? (idx === 0 ? '#ef4444' : '#10b981') : '#21262d',
+                border: '1px solid #30363d',
+                boxShadow: active ? (idx === 0 ? '0 0 12px #ef4444' : '0 0 12px #10b981') : 'none',
+                transform: active ? 'scale(1.2)' : 'scale(1)',
+                transition: 'all 0.12s'
+              }}
+            />
           );
         })}
       </div>
 
-      {/* Time Signature and Subdivision dropdowns */}
-      <div className="flex flex-wrap items-center justify-center gap-3 mb-6 pt-4 border-t border-[#30363d] text-sm">
+      {/* Time Signature and Subdivision selects */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '12px', paddingBottom: '20px' }}>
         <select
           value={beatsPerMeasure}
           onChange={(e) => setBeatsPerMeasure(Number(e.target.value))}
-          className="bg-[#0b0e14] border border-[#30363d] rounded-lg px-3 py-2 font-mono text-white outline-none cursor-pointer"
+          className="input-dark"
+          style={{ cursor: 'pointer', fontWeight: 'bold' }}
         >
           <option value="2">2/4 拍子</option>
           <option value="3">3/4 拍子</option>
@@ -202,7 +208,8 @@ export default function MetronomeCard() {
         <select
           value={subdivision}
           onChange={(e) => setSubdivision(Number(e.target.value))}
-          className="bg-[#0b0e14] border border-[#30363d] rounded-lg px-3 py-2 font-sans text-white outline-none cursor-pointer font-bold"
+          className="input-dark"
+          style={{ cursor: 'pointer', fontWeight: 'bold' }}
         >
           <option value="1">♩ 4分音符</option>
           <option value="2">♪ 8分音符</option>
@@ -210,23 +217,26 @@ export default function MetronomeCard() {
         </select>
       </div>
 
-      {/* Play/Stop button */}
+      {/* HUGE Play/Stop Button */}
       <button
         onClick={togglePlay}
-        className={`w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
-          isPlaying 
-            ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-[0_0_15px_rgba(225,29,72,0.3)]' 
-            : 'btn-green text-white'
-        }`}
+        className="btn-green"
+        style={{
+          width: '100%',
+          padding: '16px',
+          fontSize: '16px',
+          backgroundColor: isPlaying ? '#e11d48 !important' : '',
+          background: isPlaying ? 'linear-gradient(180deg, #e11d48 0%, #be123c 100%)' : ''
+        }}
       >
         {isPlaying ? (
           <>
-            <Pause className="w-5 h-5 fill-current" />
+            <Pause style={{ width: '20px', height: '20px', fill: '#ffffff' }} />
             <span>停止</span>
           </>
         ) : (
           <>
-            <Play className="w-5 h-5 fill-current" />
+            <Play style={{ width: '20px', height: '20px', fill: '#ffffff' }} />
             <span>再生</span>
           </>
         )}

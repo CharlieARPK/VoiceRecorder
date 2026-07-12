@@ -143,108 +143,115 @@ export default function TunerCard() {
   const isSharp = pitch !== null && cents > 6;
 
   const activeColor = !pitch ? "#6e7681" : inTune ? "#10b981" : "#ef4444";
-  const needleRotation = !pitch ? 0 : Math.max(-48, Math.min(48, (cents / 50) * 48));
+  const needleAngle = !pitch ? 0 : Math.max(-55, Math.min(55, (cents / 50) * 55));
 
   return (
-    <div className="hardware-card mb-6 text-center relative">
-      {/* Exact Header: チューナー */}
-      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-6 text-left">
-        <h2 className="text-xl font-bold font-sans text-white">チューナー</h2>
+    <div className="hardware-card">
+      <div className="card-header">
+        <h2 className="card-title">チューナー</h2>
         <button
           onClick={toggleListening}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1.5 cursor-pointer ${
-            isListening 
-              ? 'bg-red-500/20 text-red-400 border-red-500/40 hover:bg-red-500/30' 
-              : 'bg-[#21262d] text-gray-300 border-[#30363d] hover:text-white'
-          }`}
+          className="btn-green"
+          style={{ padding: '8px 16px', fontSize: '13px' }}
         >
-          {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+          {isListening ? <MicOff style={{ width: '16px', height: '16px' }} /> : <Mic style={{ width: '16px', height: '16px' }} />}
           <span>{isListening ? "停止" : "起動"}</span>
         </button>
       </div>
 
-      {/* Screen Box with Arc Indicator & Flat/Sharp Triangles */}
-      <div className="screen-box p-6 pt-10 pb-6 mb-5 relative min-h-[190px] flex flex-col justify-end items-center">
-        
-        {/* Circular Arc & Indicator Navigation */}
-        <div className="w-full max-w-xs relative h-24 flex justify-center items-end">
+      {/* Screen Box with exact SVG viewBox so layout NEVER overlaps or shifts */}
+      <div className="screen-box" style={{ padding: '24px 16px', marginBottom: '20px' }}>
+        <svg viewBox="0 0 400 210" style={{ width: '100%', maxWidth: '420px', margin: '0 auto', display: 'block' }}>
           
-          {/* Left triangle ▶ right next to left of arc indicator */}
-          <div 
-            className={`absolute left-8 bottom-6 flex flex-col items-center transition-all duration-150 ${
-              isFlat 
-                ? 'text-rose-500 scale-125 drop-shadow-[0_0_10px_#ef4444] font-bold' 
-                : inTune && pitch 
-                  ? 'text-emerald-400 font-bold' 
-                  : 'text-gray-700'
-            }`}
+          {/* Left triangle ▶ (FLAT indicator) exactly to the left of the arc */}
+          <text 
+            x="20" 
+            y="145" 
+            fontSize="36" 
+            fontWeight="bold" 
+            fill={isFlat ? "#ef4444" : "#21262d"}
+            style={{ filter: isFlat ? 'drop-shadow(0 0 8px #ef4444)' : 'none', transition: 'all 0.15s' }}
           >
-            <span className="text-3xl font-mono leading-none">▶</span>
-          </div>
+            ▶
+          </text>
 
-          {/* Right triangle ◀ right next to right of arc indicator */}
-          <div 
-            className={`absolute right-8 bottom-6 flex flex-col items-center transition-all duration-150 ${
-              isSharp 
-                ? 'text-rose-500 scale-125 drop-shadow-[0_0_10px_#ef4444] font-bold' 
-                : inTune && pitch 
-                  ? 'text-emerald-400 font-bold' 
-                  : 'text-gray-700'
-            }`}
+          {/* Right triangle ◀ (SHARP indicator) exactly to the right of the arc */}
+          <text 
+            x="348" 
+            y="145" 
+            fontSize="36" 
+            fontWeight="bold" 
+            fill={isSharp ? "#ef4444" : "#21262d"}
+            style={{ filter: isSharp ? 'drop-shadow(0 0 8px #ef4444)' : 'none', transition: 'all 0.15s' }}
           >
-            <span className="text-3xl font-mono leading-none">◀</span>
-          </div>
+            ◀
+          </text>
 
           {/* Circular Arc (`円弧`) */}
-          <div 
-            className="tuner-arc w-3/5 absolute bottom-4 flex justify-center"
-            style={{ borderTopColor: pitch ? activeColor : '#30363d' }}
-          >
-            {/* Center target exact indicator */}
-            <div 
-              className={`w-1.5 h-4 absolute -top-4 rounded-full transition-all ${
-                inTune ? 'bg-emerald-400 shadow-[0_0_12px_#10b981]' : 'bg-gray-600'
-              }`}
-            />
-          </div>
-
-          {/* Dynamic Indicator Needle moving across the arc */}
-          <div
-            className="w-1.5 h-20 rounded-full origin-bottom tuner-needle z-10 absolute bottom-4 transition-transform duration-100 ease-out"
-            style={{
-              backgroundColor: activeColor,
-              transform: `rotate(${needleRotation}deg)`,
-              boxShadow: pitch ? `0 0 14px ${activeColor}` : 'none'
-            }}
+          <path
+            d="M 60 140 A 140 140 0 0 1 340 140"
+            fill="none"
+            stroke={pitch ? activeColor : "#30363d"}
+            strokeWidth="6"
+            strokeLinecap="round"
+            style={{ transition: 'stroke 0.15s' }}
           />
-          <div className="w-4 h-4 rounded-full bg-gray-300 border-4 border-[#161b22] absolute bottom-2 z-20" />
-        </div>
 
-        {/* Note Display below the gauge */}
-        <div className="mt-3 flex items-baseline justify-center gap-2">
-          <span
-            className="text-6xl font-bold font-mono tracking-tight transition-colors duration-150"
-            style={{ color: activeColor }}
-          >
+          {/* Center target mark along the arc (`真ん中`) */}
+          <circle
+            cx="200"
+            cy="0"
+            r="8"
+            fill={inTune ? "#10b981" : "#4b5563"}
+            style={{ filter: inTune ? 'drop-shadow(0 0 10px #10b981)' : 'none', transition: 'all 0.15s' }}
+          />
+          <line
+            x1="200"
+            y1="0"
+            x2="200"
+            y2="15"
+            stroke={inTune ? "#10b981" : "#4b5563"}
+            strokeWidth="4"
+          />
+
+          {/* Moving Indicator Needle pivoting right along the curve (`インジケーターが動いて`) */}
+          <g style={{ transform: `rotate(${needleAngle}deg)`, transformOrigin: '200px 140px', transition: 'transform 0.12s ease-out' }}>
+            <line
+              x1="200"
+              y1="140"
+              x2="200"
+              y2="10"
+              stroke={activeColor}
+              strokeWidth="5"
+              strokeLinecap="round"
+              style={{ filter: pitch ? `drop-shadow(0 0 8px ${activeColor})` : 'none' }}
+            />
+            <circle cx="200" cy="140" r="12" fill="#d1d5db" stroke="#0b0e14" strokeWidth="4" />
+          </g>
+
+          {/* Note Name & Frequency Display below the gauge */}
+          <text x="200" y="195" textAnchor="middle" fontSize="46" fontWeight="900" fill={activeColor} fontFamily="monospace">
             {noteName}
-          </span>
-          {pitch && (
-            <span className="text-sm font-mono text-gray-400 ml-1">
-              {pitch} Hz
-            </span>
-          )}
-        </div>
+          </text>
+        </svg>
+
+        {pitch && (
+          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#9ca3af', fontFamily: 'monospace', marginTop: '4px' }}>
+            {pitch} Hz
+          </div>
+        )}
       </div>
 
-      {/* Reference frequency (no extra words) */}
-      <div className="flex items-center justify-center gap-2 text-base font-mono">
+      {/* Reference frequency */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '15px', fontWeight: 'bold' }}>
         <input
           type="number"
           value={a4Freq}
           onChange={(e) => setA4Freq(Number(e.target.value) || 440)}
-          className="w-20 bg-[#0b0e14] border border-[#30363d] rounded-lg px-2 py-1 text-center font-bold text-white focus:border-emerald-500 outline-none"
+          className="input-dark"
+          style={{ width: '80px', textAlign: 'center', fontWeight: 'bold' }}
         />
-        <span className="text-gray-300 font-sans font-bold">Hz</span>
+        <span>Hz</span>
       </div>
     </div>
   );

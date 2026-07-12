@@ -16,7 +16,6 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
   const streamRef = useRef(null);
   const animationIdRef = useRef(null);
 
-  // Time-domain amplitude history buffer across horizontal time
   const waveformHistoryRef = useRef([]);
 
   const formatTime = (seconds) => {
@@ -177,80 +176,77 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
   }, []);
 
   return (
-    <div className="hardware-card mb-6 text-center">
-      {/* Exact Card Header: 録音 */}
-      <div className="flex items-center justify-between border-b border-[#30363d] pb-3 mb-6 text-left">
-        <h2 className="text-xl font-bold font-sans text-white">録音</h2>
+    <div className="hardware-card">
+      <div className="card-header">
+        <h2 className="card-title">録音</h2>
         {isRecording && (
-          <span className="bg-rose-600/90 text-white text-xs font-mono px-3 py-1 rounded-full font-bold animate-pulse">
+          <span style={{ backgroundColor: '#e11d48', color: '#fff', fontSize: '13px', padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold' }}>
             REC {formatTime(recordingTime)}
           </span>
         )}
       </div>
 
-      {/* HUGE Prominent Recording Button (w-28 h-28 / w-32 h-32) exactly like image.png */}
-      <div className="flex justify-center my-6">
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          className={`w-28 h-28 rounded-full flex items-center justify-center transition-all shadow-2xl cursor-pointer ${
-            isRecording 
-              ? 'bg-rose-600 animate-pulse ring-8 ring-rose-500/30' 
-              : 'bg-[#ef4444] hover:bg-[#dc2626] active:scale-95 shadow-[0_0_25px_rgba(239,68,68,0.4)]'
-          }`}
-        >
-          {isRecording ? (
-            <Square className="w-12 h-12 text-white fill-white" />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-white shadow-inner" />
-          )}
-        </button>
-      </div>
+      {/* HUGE Prominent Recording Button (100px x 100px circle) */}
+      <button
+        onClick={isRecording ? stopRecording : startRecording}
+        className={`btn-record-huge ${isRecording ? 'recording' : ''}`}
+        title={isRecording ? "停止" : "録音"}
+      >
+        {isRecording ? (
+          <Square style={{ width: '42px', height: '42px', color: '#ffffff', fill: '#ffffff' }} />
+        ) : (
+          <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#ffffff', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }} />
+        )}
+      </button>
 
-      {/* Screen Box (ここに波形) */}
-      <div className="screen-box h-44 relative mb-5 flex items-center justify-center">
+      {/* Screen Box (Waveform) */}
+      <div className="screen-box" style={{ height: '160px', margin: '20px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <canvas
           ref={canvasRef}
-          width={550}
+          width={560}
           height={160}
-          className="w-full h-full block"
+          style={{ width: '100%', height: '100%', display: 'block' }}
         />
 
         {tempRecording && !isRecording && (
-          <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4">
-            <span className="text-emerald-400 font-bold text-sm mb-2">
+          <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <span style={{ color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>
               ✓ {formatTime(tempRecording.duration)}
             </span>
-            <audio src={tempRecording.url} controls className="w-11/12 max-w-sm h-10 accent-emerald-500" />
+            <audio src={tempRecording.url} controls style={{ width: '90%', maxWidth: '320px', height: '40px', accentColor: '#10b981' }} />
           </div>
         )}
       </div>
 
       {/* Filename Input */}
-      <div className="flex items-center gap-3 mb-5 text-left">
-        <label className="text-sm font-bold text-gray-300 whitespace-nowrap">ファイル名 :</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', textAlign: 'left' }}>
+        <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#d1d5db', whiteSpace: 'nowrap' }}>ファイル名 :</label>
         <input
           type="text"
           value={fileName}
           onChange={(e) => setFileName(e.target.value)}
           placeholder={tempRecording ? tempRecording.title : ""}
-          className="flex-grow bg-[#0b0e14] border border-[#30363d] rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 outline-none transition-colors font-mono"
+          className="input-dark"
+          style={{ flexGrow: 1 }}
         />
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-between items-center gap-3">
+      <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
         <button
           onClick={handleSave}
           disabled={!tempRecording}
-          className="btn-green flex-1 py-3.5 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-green"
+          style={{ flex: 1, opacity: !tempRecording ? 0.4 : 1, cursor: !tempRecording ? 'not-allowed' : 'pointer' }}
         >
           保存
         </button>
         <button
           onClick={onNavigateToLibrary}
-          className="btn-green flex-1 py-3.5 text-sm font-bold flex items-center justify-center gap-2"
+          className="btn-green"
+          style={{ flex: 1 }}
         >
-          <span>録音した音声を確認</span>
+          録音した音声を確認
         </button>
       </div>
     </div>
