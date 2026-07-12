@@ -5,7 +5,10 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
   const handleShare = async (rec) => {
     try {
       const fileName = `${rec.title.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ亜-熙]/g, '_') || 'recording'}.${rec.fileExt || 'wav'}`;
-      const file = new File([rec.blob], fileName, { type: rec.blob.type });
+      
+      // Strip any extra codec parameters like ";codecs=opus" because Android Chrome's canShare fails if parameters are present
+      const cleanMime = (rec.blob?.type || 'audio/webm').split(';')[0];
+      const file = new File([rec.blob], fileName, { type: cleanMime });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -13,18 +16,23 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
           title: rec.title,
           text: `🎸 ${rec.title}\nLINEで録音した音源を送信します！`
         });
+      } else if (navigator.share) {
+        // Try direct file share via Web Share API
+        await navigator.share({
+          files: [file],
+          title: rec.title,
+          text: `🎸 ${rec.title}`
+        });
       } else {
-        const a = document.createElement('a');
-        a.href = rec.url;
-        a.download = fileName;
-        a.click();
+        // Fallback for PC or browsers without native Web Share API: open LINE app/web directly
+        const encodedText = encodeURIComponent(`🎸 ${rec.title}\n録音したスタジオ音源をお届けします！`);
+        window.open(`https://line.me/R/msg/text/?${encodedText}`, '_blank');
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        const a = document.createElement('a');
-        a.href = rec.url;
-        a.download = `${rec.title}.${rec.fileExt || 'wav'}`;
-        a.click();
+        // If file sharing threw an exception, fall back directly to opening LINE
+        const encodedText = encodeURIComponent(`🎸 ${rec.title}\nスタジオ録音音源を送信します`);
+        window.open(`https://line.me/R/msg/text/?${encodedText}`, '_blank');
       }
     }
   };
@@ -91,7 +99,7 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
                   <audio src={rec.url} controls className="w-full h-11 accent-emerald-500" />
                 </div>
 
-                {/* Download and LINE share buttons (High contrast bright white/light text, zero blue links!) */}
+                {/* Download and LINE share buttons */}
                 <div className="flex flex-wrap justify-end items-center gap-3 pt-3 border-t border-[#30363d]">
                   <a
                     href={rec.url}

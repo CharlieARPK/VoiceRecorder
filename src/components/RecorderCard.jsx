@@ -15,6 +15,9 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
   const analyserRef = useRef(null);
   const streamRef = useRef(null);
   const animationIdRef = useRef(null);
+  const shouldAutoSaveRef = useRef(false);
+  const recordingTimeRef = useRef(0);
+  const fileNameRef = useRef("");
 
   const waveformHistoryRef = useRef([]);
 
@@ -47,25 +50,37 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
+      shouldAutoSaveRef.current = false;
 
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+        const cleanMime = mimeType ? mimeType.split(';')[0] : 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: cleanMime });
         const url = URL.createObjectURL(blob);
-        const defaultName = fileName.trim() || `録音_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'-')}_${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}).replace(':','')}`;
+        const defaultName = fileNameRef.current.trim() || `録音_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'-')}_${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}).replace(':','')}`;
         
-        setTempRecording({
+        const newRecord = {
           id: Date.now(),
           title: defaultName,
           blob: blob,
           url: url,
-          duration: recordingTime,
+          duration: recordingTimeRef.current,
           date: new Date().toLocaleDateString('ja-JP') + ' ' + new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}),
           fileExt: ext
-        });
+        };
+
+        if (shouldAutoSaveRef.current) {
+          onSaveRecording(newRecord);
+          setTempRecording(null);
+          setFileName("");
+          fileNameRef.current = "";
+          shouldAutoSaveRef.current = false;
+        } else {
+          setTempRecording(newRecord);
+        }
       };
 
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -83,9 +98,13 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       setIsRecording(true);
       setTempRecording(null);
       setRecordingTime(0);
+      recordingTimeRef.current = 0;
 
       timerIntervalRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
+        setRecordingTime((prev) => {
+          recordingTimeRef.current = prev + 1;
+          return prev + 1;
+        });
       }, 1000);
 
       drawWaveform();
@@ -160,11 +179,17 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
   };
 
   const handleSave = () => {
+    if (isRecording) {
+      shouldAutoSaveRef.current = true;
+      stopRecording();
+      return;
+    }
     if (!tempRecording) return;
     const finalName = fileName.trim() || tempRecording.title;
     onSaveRecording({ ...tempRecording, title: finalName });
     setTempRecording(null);
     setFileName("");
+    fileNameRef.current = "";
   };
 
   useEffect(() => {
@@ -186,7 +211,6 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
         )}
       </div>
 
-      {/* HUGE Prominent Recording Button (100px x 100px circle) */}
       <button
         onClick={isRecording ? stopRecording : startRecording}
         className={`btn-record-huge ${isRecording ? 'recording' : ''}`}
@@ -224,7 +248,10 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
         <input
           type="text"
           value={fileName}
-          onChange={(e) => setFileName(e.target.value)}
+          onChange={(e) => {
+            setFileName(e.target.value);
+            fileNameRef.current = e.target.value;
+          }}
           placeholder={tempRecording ? tempRecording.title : ""}
           className="input-dark"
           style={{ flexGrow: 1 }}
@@ -235,9 +262,9 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
         <button
           onClick={handleSave}
-          disabled={!tempRecording}
+          disabled={!isRecording && !tempRecording}
           className="btn-green"
-          style={{ flex: 1, opacity: !tempRecording ? 0.4 : 1, cursor: !tempRecording ? 'not-allowed' : 'pointer' }}
+          style={{ flex: 1, opacity: (!isRecording && !tempRecording) ? 0.4 : 1, cursor: (!isRecording && !tempRecording) ? 'not-allowed' : 'pointer' }}
         >
           保存
         </button>
