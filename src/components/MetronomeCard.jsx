@@ -10,7 +10,7 @@ const TIME_SIGNATURES = [
 export default function MetronomeCard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpm, setBpm] = useState(90);
-  const [timeSig, setTimeSig] = useState([6, 8]); // [beats, noteValue] - default 6/8 to show the requested UI
+  const [timeSig, setTimeSig] = useState([6, 8]); // [beats, noteValue]
   const [subdivision, setSubdivision] = useState(1);
   const [accentFirstBeat, setAccentFirstBeat] = useState(true);
   const [currentStep, setCurrentStep] = useState(-1);
@@ -35,7 +35,6 @@ export default function MetronomeCard() {
 
   const handleTimeSigChange = (newTs) => {
     setTimeSig(newTs);
-    // When switching between /4 and /8 time signatures, reset subdivision to basic beat (1)
     if (newTs[1] !== timeSig[1]) {
       setSubdivision(1);
     }
@@ -52,11 +51,11 @@ export default function MetronomeCard() {
 
     if (isCompound) {
       // In 6/8, 9/8, 12/8: BPM represents the dotted quarter note (♩.) tempo
-      mainBeatsCount = beats / 3; // e.g. 6/8 -> 2 main beats
+      mainBeatsCount = beats / 3;
       if (sub === 1) { // ♩. (Dotted quarter note)
         secondsPerStep = 60.0 / currentBpm;
         totalStepsInMeasure = mainBeatsCount;
-      } else if (sub === 3) { // ♪♪♪ (Eighth notes)
+      } else if (sub === 3) { // ♪♪♪ (Eighth notes / 3 per dotted quarter)
         secondsPerStep = (60.0 / currentBpm) / 3.0;
         totalStepsInMeasure = beats;
       } else { // 16th notes (sub === 6)
@@ -69,6 +68,9 @@ export default function MetronomeCard() {
       if (sub === 1) {
         secondsPerStep = 60.0 / currentBpm;
         totalStepsInMeasure = beats;
+      } else if (sub === 3) { // Triplets inside eighth note
+        secondsPerStep = (60.0 / currentBpm) / 3.0;
+        totalStepsInMeasure = beats * 3;
       } else {
         secondsPerStep = (60.0 / currentBpm) / 2.0;
         totalStepsInMeasure = beats * 2;
@@ -82,6 +84,9 @@ export default function MetronomeCard() {
       } else if (sub === 2) { // ♫ (Eighth notes)
         secondsPerStep = (60.0 / currentBpm) / 2.0;
         totalStepsInMeasure = beats * 2;
+      } else if (sub === 3) { // 3連符 (Triplets per quarter note)
+        secondsPerStep = (60.0 / currentBpm) / 3.0;
+        totalStepsInMeasure = beats * 3;
       } else { // ♬ (Sixteenth notes, sub === 4)
         secondsPerStep = (60.0 / currentBpm) / 4.0;
         totalStepsInMeasure = beats * 4;
@@ -107,6 +112,7 @@ export default function MetronomeCard() {
     } else {
       if (subRef.current === 1) isMainBeat = true;
       else if (subRef.current === 2) isMainBeat = (stepInMeasure % 2 === 0);
+      else if (subRef.current === 3) isMainBeat = (stepInMeasure % 3 === 0);
       else if (subRef.current === 4) isMainBeat = (stepInMeasure % 4 === 0);
     }
 
@@ -275,7 +281,7 @@ export default function MetronomeCard() {
         })}
       </div>
 
-      {/* 4x3 Grid of Circular Time Signature Buttons (Exactly matching reference screenshot) */}
+      {/* 4x3 Grid of Circular Time Signature Buttons */}
       <div style={{ backgroundColor: '#1e242e', border: '1px solid #30363d', padding: '16px', borderRadius: '20px', marginBottom: '16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '12px' }}>
           {TIME_SIGNATURES.map((ts) => {
@@ -311,8 +317,8 @@ export default function MetronomeCard() {
         </div>
       </div>
 
-      {/* Rhythmic Subdivision Options (Exactly matching reference screenshot icons) */}
-      <div style={{ backgroundColor: '#1e242e', border: '1px solid #30363d', padding: '14px', borderRadius: '20px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: '12px' }}>
+      {/* Rhythmic Subdivision Options */}
+      <div style={{ backgroundColor: '#1e242e', border: '1px solid #30363d', padding: '14px', borderRadius: '20px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: '8px' }}>
         {timeSig[1] === 8 ? (
           /* For /8 signatures like 6/8: Dotted Quarter Note (♩.), 3 Eighths (♪♪♪), 6 Sixteenths */
           <>
@@ -390,13 +396,13 @@ export default function MetronomeCard() {
             </button>
           </>
         ) : (
-          /* For /4 signatures: Quarter Note (♩), 2 Eighths (♫), 4 Sixteenths (♬) */
+          /* For /4 signatures: Quarter Note (♩), 2 Eighths (♫), 3 Triplets (3連符), 4 Sixteenths (♬) */
           <>
             <button
               onClick={() => setSubdivision(1)}
               style={{
                 flex: 1,
-                padding: '10px',
+                padding: '8px',
                 borderRadius: '14px',
                 border: subdivision === 1 ? '2px solid #10b981' : '1px solid #30363d',
                 backgroundColor: subdivision === 1 ? '#10b981/20' : '#2b333e',
@@ -406,7 +412,7 @@ export default function MetronomeCard() {
               }}
               title="4分音符（♩）"
             >
-              <svg viewBox="0 0 50 50" style={{ width: '40px', height: '40px', margin: '0 auto' }}>
+              <svg viewBox="0 0 50 50" style={{ width: '36px', height: '36px', margin: '0 auto' }}>
                 <ellipse cx="22" cy="38" rx="6" ry="4" transform="rotate(-20 22 38)" fill="currentColor" />
                 <line x1="27" y1="37" x2="27" y2="12" stroke="currentColor" strokeWidth="3" />
               </svg>
@@ -416,7 +422,7 @@ export default function MetronomeCard() {
               onClick={() => setSubdivision(2)}
               style={{
                 flex: 1,
-                padding: '10px',
+                padding: '8px',
                 borderRadius: '14px',
                 border: subdivision === 2 ? '2px solid #10b981' : '1px solid #30363d',
                 backgroundColor: subdivision === 2 ? '#10b981/20' : '#2b333e',
@@ -426,7 +432,7 @@ export default function MetronomeCard() {
               }}
               title="8分音符（♫）"
             >
-              <svg viewBox="0 0 50 50" style={{ width: '40px', height: '40px', margin: '0 auto' }}>
+              <svg viewBox="0 0 50 50" style={{ width: '36px', height: '36px', margin: '0 auto' }}>
                 <ellipse cx="16" cy="38" rx="5" ry="3.5" transform="rotate(-20 16 38)" fill="currentColor" />
                 <ellipse cx="36" cy="38" rx="5" ry="3.5" transform="rotate(-20 36 38)" fill="currentColor" />
                 <line x1="20" y1="37" x2="20" y2="15" stroke="currentColor" strokeWidth="3" />
@@ -436,10 +442,36 @@ export default function MetronomeCard() {
             </button>
 
             <button
+              onClick={() => setSubdivision(3)}
+              style={{
+                flex: 1,
+                padding: '8px',
+                borderRadius: '14px',
+                border: subdivision === 3 ? '2px solid #10b981' : '1px solid #30363d',
+                backgroundColor: subdivision === 3 ? '#10b981/20' : '#2b333e',
+                color: '#ffffff',
+                cursor: 'pointer',
+                transition: 'all 0.15s'
+              }}
+              title="3連符（各拍3連）"
+            >
+              <svg viewBox="0 0 60 50" style={{ width: '42px', height: '36px', margin: '0 auto' }}>
+                <ellipse cx="12" cy="38" rx="5" ry="3.5" transform="rotate(-20 12 38)" fill="currentColor" />
+                <ellipse cx="28" cy="38" rx="5" ry="3.5" transform="rotate(-20 28 38)" fill="currentColor" />
+                <ellipse cx="44" cy="38" rx="5" ry="3.5" transform="rotate(-20 44 38)" fill="currentColor" />
+                <line x1="16" y1="37" x2="16" y2="18" stroke="currentColor" strokeWidth="3" />
+                <line x1="32" y1="37" x2="32" y2="18" stroke="currentColor" strokeWidth="3" />
+                <line x1="48" y1="37" x2="48" y2="18" stroke="currentColor" strokeWidth="3" />
+                <path d="M 15 18 L 49 18" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
+                <text x="30" y="13" textAnchor="middle" fontSize="13" fontWeight="900" fill="currentColor" fontFamily="serif">3</text>
+              </svg>
+            </button>
+
+            <button
               onClick={() => setSubdivision(4)}
               style={{
                 flex: 1,
-                padding: '10px',
+                padding: '8px',
                 borderRadius: '14px',
                 border: subdivision === 4 ? '2px solid #10b981' : '1px solid #30363d',
                 backgroundColor: subdivision === 4 ? '#10b981/20' : '#2b333e',
@@ -449,7 +481,7 @@ export default function MetronomeCard() {
               }}
               title="16分音符（♬）"
             >
-              <svg viewBox="0 0 60 50" style={{ width: '44px', height: '40px', margin: '0 auto' }}>
+              <svg viewBox="0 0 60 50" style={{ width: '42px', height: '36px', margin: '0 auto' }}>
                 <ellipse cx="14" cy="38" rx="5" ry="3.5" transform="rotate(-20 14 38)" fill="currentColor" />
                 <ellipse cx="26" cy="38" rx="5" ry="3.5" transform="rotate(-20 26 38)" fill="currentColor" />
                 <ellipse cx="38" cy="38" rx="5" ry="3.5" transform="rotate(-20 38 38)" fill="currentColor" />
