@@ -3,6 +3,9 @@ import { ArrowLeft, Share2, Trash2, Download } from 'lucide-react';
 
 export default function SavedRecordingsPage({ recordings, onDeleteRecording, onBackToStudio }) {
   const handleShare = async (rec) => {
+    const appUrl = "https://voice-recorder-studio.vercel.app";
+    const shareText = `🎸 ${rec.title}\n※音声ファイルはこの音楽スタジオアプリで録音されました！\n▼ アプリURL（ブラウザで開けます）\n${appUrl}`;
+
     try {
       const fileName = `${rec.title.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ亜-熙]/g, '_') || 'recording'}.${rec.fileExt || 'wav'}`;
       
@@ -14,24 +17,25 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
         await navigator.share({
           files: [file],
           title: rec.title,
-          text: `🎸 ${rec.title}\nLINEで録音した音源を送信します！`
+          text: shareText,
+          url: appUrl
         });
       } else if (navigator.share) {
-        // Try direct file share via Web Share API
+        // Try direct Web Share API with valid app URL
         await navigator.share({
-          files: [file],
           title: rec.title,
-          text: `🎸 ${rec.title}`
+          text: shareText,
+          url: appUrl
         });
       } else {
-        // Fallback for PC or browsers without native Web Share API: open LINE app/web directly
-        const encodedText = encodeURIComponent(`🎸 ${rec.title}\n録音したスタジオ音源をお届けします！`);
+        // Fallback for PC or browsers without native Web Share API: open LINE app/web directly with valid URL
+        const encodedText = encodeURIComponent(shareText);
         window.open(`https://line.me/R/msg/text/?${encodedText}`, '_blank');
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        // If file sharing threw an exception, fall back directly to opening LINE
-        const encodedText = encodeURIComponent(`🎸 ${rec.title}\nスタジオ録音音源を送信します`);
+        // If file sharing threw an exception, fall back directly to opening LINE with valid URL
+        const encodedText = encodeURIComponent(shareText);
         window.open(`https://line.me/R/msg/text/?${encodedText}`, '_blank');
       }
     }
