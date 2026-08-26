@@ -3,10 +3,63 @@ import { Mic, MicOff } from 'lucide-react';
 
 const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
+// Standard tuning. Charango strings are arranged in five double-string courses.
+const guitarTuning = [
+  { label: "1弦", note: "E4", midi: [64] },
+  { label: "2弦", note: "B3", midi: [59] },
+  { label: "3弦", note: "G3", midi: [55] },
+  { label: "4弦", note: "D3", midi: [50] },
+  { label: "5弦", note: "A2", midi: [45] },
+  { label: "6弦", note: "E2", midi: [40] }
+];
+
+const charangoTuning = [
+  { label: "1コース", note: "E5", midi: [76] },
+  { label: "2コース", note: "A4", midi: [69] },
+  { label: "3コース", note: "E5・E4", midi: [76, 64] },
+  { label: "4コース", note: "C5", midi: [72] },
+  { label: "5コース", note: "G4", midi: [67] }
+];
+
+function getCharangoCourse(noteNumber) {
+  if (noteNumber === null) return null;
+
+  const matches = charangoTuning.filter(({ midi }) => midi.includes(noteNumber));
+  if (matches.length === 0) return null;
+
+  // E5 is shared by the first course and the high string of the third course.
+  if (noteNumber === 76) return "1・3コース";
+  if (noteNumber === 64) return "3コース（低音弦）";
+  return matches[0].label;
+}
+
+function TuningGuide({ title, tuning, detectedNote }) {
+  return (
+    <div className="tuning-guide">
+      <div className="tuning-guide-title">{title}</div>
+      <div className="tuning-strings">
+        {tuning.map((string) => {
+          const isActive = detectedNote !== null && string.midi.includes(detectedNote);
+          return (
+            <div
+              key={string.label}
+              className={`tuning-string${isActive ? ' tuning-string-active' : ''}`}
+            >
+              <span className="tuning-string-number">{string.label}</span>
+              <span className="tuning-string-note">{string.note}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function TunerCard() {
   const [isListening, setIsListening] = useState(false);
   const [pitch, setPitch] = useState(null);
   const [noteName, setNoteName] = useState("--");
+  const [detectedNote, setDetectedNote] = useState(null);
   const [cents, setCents] = useState(0);
   const [a4Freq, setA4Freq] = useState(440);
 
@@ -83,6 +136,7 @@ export default function TunerCard() {
       setIsListening(false);
       setPitch(null);
       setNoteName("--");
+      setDetectedNote(null);
       setCents(0);
       return;
     }
@@ -125,6 +179,7 @@ export default function TunerCard() {
 
       setPitch(Math.round(frequency * 10) / 10);
       setNoteName(note || "--");
+      setDetectedNote(noteNum);
       setCents(centDiff);
     }
 
@@ -144,6 +199,7 @@ export default function TunerCard() {
 
   const activeColor = !pitch ? "#6e7681" : inTune ? "#10b981" : "#ef4444";
   const needleAngle = !pitch ? 0 : Math.max(-55, Math.min(55, (cents / 50) * 55));
+  const charangoCourse = getCharangoCourse(detectedNote);
 
   return (
     <div className="hardware-card">
@@ -240,6 +296,17 @@ export default function TunerCard() {
             {pitch} Hz
           </div>
         )}
+
+        {pitch && charangoCourse && (
+          <div className="charango-course-badge">
+            Charango {charangoCourse}
+          </div>
+        )}
+      </div>
+
+      <div className="tuning-guides" aria-label="ギターとチャランゴの標準調弦表">
+        <TuningGuide title="ギター（標準調弦）" tuning={guitarTuning} detectedNote={detectedNote} />
+        <TuningGuide title="チャランゴ（標準調弦）" tuning={charangoTuning} detectedNote={detectedNote} />
       </div>
 
       {/* Reference frequency */}

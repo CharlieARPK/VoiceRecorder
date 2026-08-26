@@ -129,6 +129,99 @@ body {
   position: relative !important;
 }
 
+/* Instrument tuning references */
+.charango-course-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 1px solid rgba(16, 185, 129, 0.55);
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.tuning-guides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0 0 20px;
+  text-align: left;
+}
+
+.tuning-guide {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  background: #0b0e14;
+}
+
+.tuning-guide-title {
+  margin-bottom: 9px;
+  color: #d1d5db;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tuning-strings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tuning-string {
+  display: inline-flex;
+  flex: 1 1 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid #30363d;
+  border-radius: 7px;
+  background: #161b22;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.tuning-string-active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.14);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.18);
+}
+
+.tuning-string-number {
+  overflow: hidden;
+  color: #8b949e;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tuning-string-note {
+  color: #f0f6fc;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tuning-string-active .tuning-string-number,
+.tuning-string-active .tuning-string-note {
+  color: #6ee7b7;
+}
+
+@media (max-width: 520px) {
+  .tuning-guides {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Inline row that NEVER wraps to multiple lines (`[-] [90] [+]`) */
 .row-nowrap {
   display: flex !important;
