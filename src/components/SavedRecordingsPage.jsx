@@ -3,7 +3,7 @@ import { ArrowLeft, Share2, Trash2, Download } from 'lucide-react';
 
 export default function SavedRecordingsPage({ recordings, onDeleteRecording, onBackToStudio }) {
   const handleShare = async (rec) => {
-    const appUrl = "https://voice-recorder-studio.vercel.app";
+    const appUrl = "https://charliearpk.github.io/VoiceRecorder/";
     const shareText = `🎸 ${rec.title}\n※音声ファイルはこの音楽スタジオアプリで録音されました！\n▼ アプリURL（ブラウザで開けます）\n${appUrl}`;
 
     try {
