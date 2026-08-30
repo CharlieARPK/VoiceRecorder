@@ -34,18 +34,15 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       });
       streamRef.current = stream;
 
-      let mimeType = 'audio/webm;codecs=opus';
-      let ext = 'webm';
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=pcm')) {
-        mimeType = 'audio/webm;codecs=pcm';
-        ext = 'wav';
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        mimeType = 'audio/mp4';
-        ext = 'm4a';
-      } else if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = '';
-        ext = 'webm';
-      }
+      const supportedFormat = [
+        { mimeType: 'audio/mp4;codecs=mp4a.40.2', ext: 'm4a' },
+        { mimeType: 'audio/mp4', ext: 'm4a' },
+        { mimeType: 'audio/webm;codecs=opus', ext: 'webm' },
+        { mimeType: 'audio/webm', ext: 'webm' }
+      ].find(({ mimeType: candidate }) => MediaRecorder.isTypeSupported(candidate));
+
+      const mimeType = supportedFormat?.mimeType || '';
+      const ext = supportedFormat?.ext || 'webm';
 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       mediaRecorderRef.current = recorder;

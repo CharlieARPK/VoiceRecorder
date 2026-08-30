@@ -37,7 +37,7 @@ function TuningGuide({ title, tuning, detectedNote }) {
   return (
     <div className="tuning-guide">
       <div className="tuning-guide-title">{title}</div>
-      <div className="tuning-strings">
+      <div className="tuning-strings" style={{ '--string-count': tuning.length }}>
         {tuning.map((string) => {
           const isActive = detectedNote !== null && string.midi.includes(detectedNote);
           return (

@@ -1,43 +1,70 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, Share2, Trash2, Download } from 'lucide-react';
 
 export default function SavedRecordingsPage({ recordings, onDeleteRecording, onBackToStudio }) {
+  const [shareStatus, setShareStatus] = useState(null);
+
+  const extensionForMime = (mimeType, fallback = 'webm') => {
+    if (mimeType === 'audio/mp4' || mimeType === 'audio/m4a' || mimeType === 'audio/x-m4a') return 'm4a';
+    if (mimeType === 'audio/wav' || mimeType === 'audio/wave' || mimeType === 'audio/x-wav') return 'wav';
+    if (mimeType === 'audio/webm') return 'webm';
+    return fallback;
+  };
+
+  const downloadRecording = (rec, fileName) => {
+    const temporaryUrl = rec.url ? null : URL.createObjectURL(rec.blob);
+    const link = document.createElement('a');
+    link.href = rec.url || temporaryUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    if (temporaryUrl) setTimeout(() => URL.revokeObjectURL(temporaryUrl), 1000);
+  };
+
   const handleShare = async (rec) => {
-    const appUrl = "https://charliearpk.github.io/VoiceRecorder/";
+    const appUrl = new URL('./', window.location.href).href;
     const shareText = `🎸 ${rec.title}\n※音声ファイルはこの音楽スタジオアプリで録音されました！\n▼ アプリURL（ブラウザで開けます）\n${appUrl}`;
+    const cleanMime = (rec.blob?.type || 'audio/webm').split(';')[0].toLowerCase();
+    const fileExt = extensionForMime(cleanMime, rec.fileExt || 'webm');
+    const safeTitle = rec.title.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ亜-熙]/g, '_') || 'recording';
+    const fileName = `${safeTitle}.${fileExt}`;
+
+    setShareStatus({ id: rec.id, type: 'info', message: '共有画面を準備しています…' });
 
     try {
-      const fileName = `${rec.title.replace(/[^a-zA-Z0-9ぁ-んァ-ヶ亜-熙]/g, '_') || 'recording'}.${rec.fileExt || 'wav'}`;
-      
-      // Strip any extra codec parameters like ";codecs=opus" because Android Chrome's canShare fails if parameters are present
-      const cleanMime = (rec.blob?.type || 'audio/webm').split(';')[0];
+      if (!rec.blob) throw new Error('録音データが見つかりません');
+
       const file = new File([rec.blob], fileName, { type: cleanMime });
 
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        // LINE on Android can reject a mixed payload. Share the audio file only.
         await navigator.share({
           files: [file],
-          title: rec.title,
-          text: shareText,
-          url: appUrl
+          title: rec.title
         });
-      } else if (navigator.share) {
-        // Try direct Web Share API with valid app URL
-        await navigator.share({
-          title: rec.title,
-          text: shareText,
-          url: appUrl
-        });
-      } else {
-        // Fallback for PC or browsers without native Web Share API: open LINE app/web directly with valid URL
-        const encodedText = encodeURIComponent(shareText);
-        window.open(`https://line.me/R/msg/text/?${encodedText}`, '_blank');
+        setShareStatus({ id: rec.id, type: 'success', message: '音声を共有画面へ渡しました。LINEを選んで送信してください。' });
+        return;
       }
+
+      downloadRecording(rec, fileName);
+      setShareStatus({ id: rec.id, type: 'warning', message: 'このブラウザは音声の直接共有に非対応です。音声を保存したので、LINEの「＋」→「ファイル」から選んでください。' });
+
+      const encodedText = encodeURIComponent(shareText);
+      window.open(`https://line.me/R/msg/text/?${encodedText}`, '_blank', 'noopener,noreferrer');
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        // If file sharing threw an exception, fall back directly to opening LINE with valid URL
-        const encodedText = encodeURIComponent(shareText);
-        window.open(`https://line.me/R/msg/text/?${encodedText}`, '_blank');
+      if (err.name === 'AbortError') {
+        setShareStatus(null);
+        return;
       }
+
+      if (!rec.blob) {
+        setShareStatus({ id: rec.id, type: 'warning', message: '録音データを読み込めませんでした。ページを開き直してから、もう一度お試しください。' });
+        return;
+      }
+
+      downloadRecording(rec, fileName);
+      setShareStatus({ id: rec.id, type: 'warning', message: 'LINEへ直接渡せなかったため音声を保存しました。LINEの「＋」→「ファイル」から選んでください。' });
     }
   };
 
@@ -122,6 +149,20 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
                     <span>LINEで送信</span>
                   </button>
                 </div>
+
+                {shareStatus?.id === rec.id && (
+                  <p
+                    className={`mt-3 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+                      shareStatus.type === 'success'
+                        ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                        : shareStatus.type === 'warning'
+                          ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                          : 'border-sky-500/40 bg-sky-500/10 text-sky-200'
+                    }`}
+                  >
+                    {shareStatus.message}
+                  </p>
+                )}
               </div>
             ))}
           </div>
