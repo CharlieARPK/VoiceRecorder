@@ -33,24 +33,32 @@ function getCharangoCourse(noteNumber) {
   return matches[0].label;
 }
 
-function TuningGuide({ title, tuning, detectedNote }) {
+function TuningGuide({ instrument, title, tuning, detectedNote, playingKey, onPlay }) {
   return (
     <div className="tuning-guide">
       <div className="tuning-guide-title">{title}</div>
       <div className="tuning-strings" style={{ '--string-count': tuning.length }}>
         {tuning.map((string) => {
           const isActive = detectedNote !== null && string.midi.includes(detectedNote);
+          const stringKey = `${instrument}-${string.label}`;
+          const isPlaying = playingKey === stringKey;
           return (
-            <div
+            <button
+              type="button"
               key={string.label}
-              className={`tuning-string${isActive ? ' tuning-string-active' : ''}`}
+              onClick={() => onPlay(string.midi, stringKey)}
+              className={`tuning-string${isActive ? ' tuning-string-active' : ''}${isPlaying ? ' tuning-string-playing' : ''}`}
+              aria-label={`${instrument} ${string.label} ${string.note} の基準音を再生`}
+              aria-pressed={isPlaying}
+              title={`${string.note}を鳴らす`}
             >
               <span className="tuning-string-number">{string.label}</span>
               <span className="tuning-string-note">{string.note}</span>
-            </div>
+            </button>
           );
         })}
       </div>
+      <div className="tuning-guide-hint">タップして基準音を再生</div>
     </div>
   );
 }
@@ -62,12 +70,17 @@ export default function TunerCard() {
   const [detectedNote, setDetectedNote] = useState(null);
   const [cents, setCents] = useState(0);
   const [a4Freq, setA4Freq] = useState(440);
+  const [playingKey, setPlayingKey] = useState(null);
 
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const animationFrameRef = useRef(null);
   const bufferRef = useRef(null);
+  const toneAudioContextRef = useRef(null);
+  const toneOscillatorsRef = useRef([]);
+  const toneGainRef = useRef(null);
+  const toneTimerRef = useRef(null);
 
   function autoCorrelate(buf, sampleRate) {
     let SIZE = buf.length;
@@ -127,6 +140,75 @@ export default function TunerCard() {
   function centsOffFromPitch(frequency, note, A4 = a4Freq) {
     return Math.floor(1200 * Math.log(frequency / frequencyFromNoteNumber(note, A4)) / Math.log(2));
   }
+
+  const stopReferenceTone = () => {
+    if (toneTimerRef.current) {
+      clearTimeout(toneTimerRef.current);
+      toneTimerRef.current = null;
+    }
+
+    toneOscillatorsRef.current.forEach((oscillator) => {
+      try {
+        oscillator.stop();
+      } catch {
+        // The oscillator may already have stopped naturally.
+      }
+      oscillator.disconnect();
+    });
+    toneOscillatorsRef.current = [];
+
+    if (toneGainRef.current) {
+      toneGainRef.current.disconnect();
+      toneGainRef.current = null;
+    }
+  };
+
+  const playReferenceTone = async (midiNotes, stringKey) => {
+    const ToneAudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!ToneAudioContext) return;
+
+    stopReferenceTone();
+    setPlayingKey(null);
+
+    if (!toneAudioContextRef.current || toneAudioContextRef.current.state === 'closed') {
+      toneAudioContextRef.current = new ToneAudioContext();
+    }
+
+    const audioCtx = toneAudioContextRef.current;
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    const now = audioCtx.currentTime;
+    const duration = 1.5;
+    const gain = audioCtx.createGain();
+    const peakVolume = 0.16 / Math.sqrt(Math.max(1, midiNotes.length));
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(peakVolume, now + 0.03);
+    gain.gain.setValueAtTime(peakVolume, now + 1.1);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    gain.connect(audioCtx.destination);
+    toneGainRef.current = gain;
+
+    toneOscillatorsRef.current = midiNotes.map((midiNote) => {
+      const oscillator = audioCtx.createOscillator();
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(frequencyFromNoteNumber(midiNote), now);
+      oscillator.connect(gain);
+      oscillator.start(now);
+      oscillator.stop(now + duration + 0.02);
+      return oscillator;
+    });
+
+    setPlayingKey(stringKey);
+    toneTimerRef.current = setTimeout(() => {
+      toneOscillatorsRef.current.forEach((oscillator) => oscillator.disconnect());
+      toneOscillatorsRef.current = [];
+      if (toneGainRef.current) toneGainRef.current.disconnect();
+      toneGainRef.current = null;
+      toneTimerRef.current = null;
+      setPlayingKey(null);
+    }, (duration + 0.08) * 1000);
+  };
 
   const toggleListening = async () => {
     if (isListening) {
@@ -190,6 +272,10 @@ export default function TunerCard() {
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      stopReferenceTone();
+      if (toneAudioContextRef.current && toneAudioContextRef.current.state !== 'closed') {
+        toneAudioContextRef.current.close();
+      }
     };
   }, []);
 
@@ -305,8 +391,8 @@ export default function TunerCard() {
       </div>
 
       <div className="tuning-guides" aria-label="ギターとチャランゴの標準調弦表">
-        <TuningGuide title="ギター（標準調弦）" tuning={guitarTuning} detectedNote={detectedNote} />
-        <TuningGuide title="チャランゴ（標準調弦）" tuning={charangoTuning} detectedNote={detectedNote} />
+        <TuningGuide instrument="ギター" title="ギター（標準調弦）" tuning={guitarTuning} detectedNote={detectedNote} playingKey={playingKey} onPlay={playReferenceTone} />
+        <TuningGuide instrument="チャランゴ" title="チャランゴ（標準調弦）" tuning={charangoTuning} detectedNote={detectedNote} playingKey={playingKey} onPlay={playReferenceTone} />
       </div>
 
       {/* Reference frequency */}

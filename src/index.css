@@ -185,7 +185,25 @@ body {
   border: 1px solid #30363d;
   border-radius: 7px;
   background: #161b22;
-  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.tuning-string:hover {
+  border-color: #4b5563;
+  background: #21262d;
+}
+
+.tuning-string:focus-visible {
+  outline: 2px solid #6ee7b7;
+  outline-offset: 2px;
+}
+
+.tuning-string:active {
+  transform: scale(0.96);
 }
 
 .tuning-string-active {
@@ -210,8 +228,29 @@ body {
 }
 
 .tuning-string-active .tuning-string-number,
-.tuning-string-active .tuning-string-note {
+.tuning-string-active .tuning-string-note,
+.tuning-string-playing .tuning-string-number,
+.tuning-string-playing .tuning-string-note {
   color: #6ee7b7;
+}
+
+.tuning-string-playing {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+  animation: tuning-tone-pulse 0.7s ease-in-out infinite alternate;
+}
+
+.tuning-guide-hint {
+  margin-top: 7px;
+  color: #6b7280;
+  font-size: 9px;
+  text-align: center;
+}
+
+@keyframes tuning-tone-pulse {
+  from { box-shadow: 0 0 6px rgba(16, 185, 129, 0.2); }
+  to { box-shadow: 0 0 16px rgba(16, 185, 129, 0.5); }
 }
 
 @media (max-width: 520px) {
