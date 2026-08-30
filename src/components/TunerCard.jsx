@@ -16,7 +16,8 @@ const guitarTuning = [
 const charangoTuning = [
   { label: "1コース", note: "E5", midi: [76] },
   { label: "2コース", note: "A4", midi: [69] },
-  { label: "3コース", note: "E5・E4", midi: [76, 64] },
+  { label: "3高", note: "E5", midi: [76] },
+  { label: "3低", note: "E4", midi: [64] },
   { label: "4コース", note: "C5", midi: [72] },
   { label: "5コース", note: "G4", midi: [67] }
 ];
@@ -178,13 +179,13 @@ export default function TunerCard() {
     if (audioCtx.state === 'suspended') await audioCtx.resume();
 
     const now = audioCtx.currentTime;
-    const duration = 1.5;
+    const duration = 1;
     const gain = audioCtx.createGain();
     const peakVolume = 0.16 / Math.sqrt(Math.max(1, midiNotes.length));
 
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(peakVolume, now + 0.03);
-    gain.gain.setValueAtTime(peakVolume, now + 1.1);
+    gain.gain.setValueAtTime(peakVolume, now + 0.7);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     gain.connect(audioCtx.destination);
     toneGainRef.current = gain;
