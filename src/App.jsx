@@ -4,6 +4,7 @@ import TunerCard from './components/TunerCard';
 import MetronomeCard from './components/MetronomeCard';
 import SavedRecordingsPage from './components/SavedRecordingsPage';
 import { getAllRecordingsFromDB, saveRecordingToDB, deleteRecordingFromDB } from './utils/db';
+import { APP_VERSION } from './version';
 import './App.css';
 
 export default function App() {
@@ -158,6 +159,9 @@ export default function App() {
           onBackToStudio={() => setCurrentTab('studio')}
         />
       )}
+      <div className="app-version" aria-label={`アプリバージョン ${APP_VERSION}`}>
+        v{APP_VERSION}
+      </div>
     </div>
   );
 }
