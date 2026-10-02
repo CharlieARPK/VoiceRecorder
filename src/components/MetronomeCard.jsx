@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, Plus, Minus } from 'lucide-react';
 
+const MIN_BPM = 30;
+const MAX_BPM = 350;
+
+function resolveTempo(text, fallback) {
+  if (text.trim() === '') return fallback;
+  const value = Number(text);
+  return Number.isFinite(value) ? Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value))) : fallback;
+}
+
 const TIME_SIGNATURES = [
   [1, 4], [2, 4], [3, 4], [4, 4],
   [5, 4], [6, 4], [3, 8], [5, 8],
@@ -10,6 +19,10 @@ const TIME_SIGNATURES = [
 export default function MetronomeCard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpm, setBpm] = useState(90);
+  // Keep editing text separate so deleting digits never changes the running tempo.
+  const [bpmDraft, setBpmDraft] = useState('90');
+  const [tempoMessage, setTempoMessage] = useState('');
+  const bpmInputRef = useRef(null);
   const [timeSig, setTimeSig] = useState([6, 8]); // [beats, noteValue]
   const [subdivision, setSubdivision] = useState(1);
   const [accentFirstBeat, setAccentFirstBeat] = useState(true);
@@ -25,6 +38,27 @@ export default function MetronomeCard() {
   const timeSigRef = useRef([6, 8]);
   const subRef = useRef(1);
   const accentRef = useRef(true);
+
+  const applyTempo = (value) => {
+    bpmRef.current = value;
+    setBpm(value);
+    setBpmDraft(String(value));
+  };
+
+  const commitTempo = () => {
+    const next = resolveTempo(bpmDraft, bpmRef.current);
+    const wasEmpty = bpmDraft.trim() === '';
+    const wasClamped = !wasEmpty && Number(bpmDraft) !== next;
+    applyTempo(next);
+    setTempoMessage(wasEmpty
+      ? `空欄のため ${next} BPM を維持しました`
+      : wasClamped ? `設定範囲は30〜350 BPMです。${next} BPMに調整しました` : '');
+  };
+
+  const adjustTempo = (delta) => {
+    applyTempo(resolveTempo(String(resolveTempo(bpmDraft, bpmRef.current) + delta), bpmRef.current));
+    setTempoMessage('');
+  };
 
   useEffect(() => {
     bpmRef.current = bpm;
@@ -225,35 +259,65 @@ export default function MetronomeCard() {
       </div>
 
       {/* (-) [ 90 ] (+) right next to numeric input */}
-      <div className="row-nowrap">
+      <div className="tempo-controls">
         <button
-          onClick={() => setBpm(Math.max(30, bpm - 1))}
+          type="button"
+          onClick={() => adjustTempo(-1)}
           className="btn-plus-minus"
           title="-1"
+          aria-label="テンポを1 BPM下げる"
         >
           <Minus style={{ width: '22px', height: '22px' }} />
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0b0e14', border: '1px solid #30363d', borderRadius: '14px', padding: '6px 16px' }}>
+        <div className="tempo-field">
           <input
-            type="number"
-            min="30"
-            max="300"
-            value={bpm}
-            onChange={(e) => setBpm(Math.max(30, Math.min(300, Number(e.target.value) || 90)))}
-            style={{ width: '76px', background: 'transparent', border: 'none', color: '#ffffff', fontSize: '32px', fontWeight: 'bold', textAlign: 'center', fontFamily: 'monospace', outline: 'none' }}
+            ref={bpmInputRef}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            enterKeyHint="done"
+            autoComplete="off"
+            aria-label="テンポ（BPM）"
+            aria-describedby="tempo-help"
+            value={bpmDraft}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => {
+              const text = e.target.value.normalize('NFKC');
+              if (/^[0-9]*$/.test(text)) {
+                setBpmDraft(text);
+                setTempoMessage('');
+              }
+            }}
+            onBlur={commitTempo}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
           />
           <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#9ca3af' }}>BPM</span>
         </div>
 
         <button
-          onClick={() => setBpm(Math.min(300, bpm + 1))}
+          type="button"
+          onClick={() => adjustTempo(1)}
           className="btn-plus-minus"
           title="+1"
+          aria-label="テンポを1 BPM上げる"
         >
           <Plus style={{ width: '22px', height: '22px' }} />
         </button>
       </div>
+      <div className="tempo-edit-actions">
+        <span id="tempo-help">30〜350 BPM・入力後に決定</span>
+        <button type="button" className="tempo-done" onClick={() => {
+          commitTempo();
+          bpmInputRef.current?.blur();
+        }}>決定</button>
+      </div>
+      <p className="tempo-feedback" role="status">{tempoMessage}</p>
 
       {/* Beat step indicators */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px', margin: '20px 0' }}>

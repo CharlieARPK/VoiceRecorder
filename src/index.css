@@ -280,6 +280,84 @@ body {
   margin: 16px 0 !important;
 }
 
+.tempo-controls {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 180px) 44px;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.tempo-controls .btn-plus-minus {
+  width: 44px !important;
+  height: 52px !important;
+  touch-action: manipulation;
+}
+
+.tempo-field {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #0b0e14;
+  border: 1px solid #30363d;
+  border-radius: 14px;
+}
+
+.tempo-field:focus-within {
+  border-color: #34d399;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.2);
+}
+
+.tempo-field input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font: bold 32px var(--font-mono);
+  text-align: center;
+  outline: none;
+}
+
+.tempo-edit-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.tempo-done {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #4b5563;
+  border-radius: 10px;
+  background: #21262d;
+  color: #f0f6fc;
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tempo-done:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 2px;
+}
+
+.tempo-feedback {
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
 /* Square (+)/(-) Buttons */
 .btn-plus-minus {
   width: 52px !important;
