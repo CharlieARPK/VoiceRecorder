@@ -1,36 +1,32 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, Plus, Minus } from 'lucide-react';
+import { readPreference, writePreference } from '../utils/preferences';
+import { TIME_SIGNATURES, isCompound, isOddEighth, subdivisionsFor, groupsFor, beatUnit, timingFor, beatFor } from '../utils/rhythm';
 
 const MIN_BPM = 30;
 const MAX_BPM = 350;
-
 function resolveTempo(text, fallback) {
   if (text.trim() === '') return fallback;
   const value = Number(text);
   return Number.isFinite(value) ? Math.max(MIN_BPM, Math.min(MAX_BPM, Math.round(value))) : fallback;
 }
 
-const TIME_SIGNATURES = [
-  [1, 4], [2, 4], [3, 4], [4, 4],
-  [5, 4], [6, 4], [3, 8], [5, 8],
-  [6, 8], [7, 8], [9, 8], [12, 8]
-];
-
 export default function MetronomeCard() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpm, setBpm] = useState(90);
-  // Keep editing text separate so deleting digits never changes the running tempo.
   const [bpmDraft, setBpmDraft] = useState('90');
   const [tempoMessage, setTempoMessage] = useState('');
   const bpmInputRef = useRef(null);
-  const [timeSig, setTimeSig] = useState([6, 8]); // [beats, noteValue]
+  const [timeSig, setTimeSig] = useState([6, 8]);
   const [subdivision, setSubdivision] = useState(1);
   const [accentFirstBeat, setAccentFirstBeat] = useState(true);
+  const [grouping, setGrouping] = useState('');
   const [currentStep, setCurrentStep] = useState(-1);
   const [pendulumAngle, setPendulumAngle] = useState(0);
-
+  const [isStarting, setIsStarting] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
   const audioContextRef = useRef(null);
-  const nextNoteTimeRef = useRef(0.0);
+  const nextNoteTimeRef = useRef(0);
   const currentStepRef = useRef(0);
   const timerIDRef = useRef(null);
   const isPlayingRef = useRef(false);
@@ -38,203 +34,210 @@ export default function MetronomeCard() {
   const timeSigRef = useRef([6, 8]);
   const subRef = useRef(1);
   const accentRef = useRef(true);
+  const groupingRef = useRef('');
+  const settingsReadyRef = useRef(false);
+  const tapTimesRef = useRef([]);
+  const tapResetRef = useRef(null);
+  const nodesRef = useRef(new Set());
+  const visualsRef = useRef(new Set());
+  const sessionRef = useRef(0);
+  const startingRef = useRef(false);
 
-  const applyTempo = (value) => {
-    bpmRef.current = value;
-    setBpm(value);
-    setBpmDraft(String(value));
-  };
-
-  const commitTempo = () => {
-    const next = resolveTempo(bpmDraft, bpmRef.current);
-    const wasEmpty = bpmDraft.trim() === '';
-    const wasClamped = !wasEmpty && Number(bpmDraft) !== next;
-    applyTempo(next);
-    setTempoMessage(wasEmpty
-      ? `空欄のため ${next} BPM を維持しました`
-      : wasClamped ? `設定範囲は30〜350 BPMです。${next} BPMに調整しました` : '');
-  };
-
-  const adjustTempo = (delta) => {
-    applyTempo(resolveTempo(String(resolveTempo(bpmDraft, bpmRef.current) + delta), bpmRef.current));
-    setTempoMessage('');
-  };
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const stored = readPreference('metronome', {});
+      const ts = TIME_SIGNATURES.find(ts => Array.isArray(stored.timeSig) && ts[0] === stored.timeSig[0] && ts[1] === stored.timeSig[1]) || [6, 8];
+      const value = resolveTempo(String(stored.bpm ?? 90), 90);
+      setBpm(value);
+      setBpmDraft(String(value));
+      bpmRef.current = value;
+      setTimeSig(ts);
+      timeSigRef.current = ts;
+      const sub = subdivisionsFor(ts).includes(stored.subdivision) ? stored.subdivision : 1;
+      setSubdivision(sub);
+      subRef.current = sub;
+      setAccentFirstBeat(stored.accentFirstBeat !== false);
+      accentRef.current = stored.accentFirstBeat !== false;
+      const group = groupsFor(ts).includes(stored.grouping) ? stored.grouping : groupsFor(ts)[0] || '';
+      setGrouping(group);
+      groupingRef.current = group;
+      settingsReadyRef.current = true;
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     bpmRef.current = bpm;
     timeSigRef.current = timeSig;
     subRef.current = subdivision;
     accentRef.current = accentFirstBeat;
-  }, [bpm, timeSig, subdivision, accentFirstBeat]);
+    groupingRef.current = grouping;
+    if (settingsReadyRef.current) writePreference('metronome', { bpm, timeSig, subdivision, accentFirstBeat, grouping });
+  }, [bpm, timeSig, subdivision, accentFirstBeat, grouping]);
 
-  const handleTimeSigChange = (newTs) => {
-    setTimeSig(newTs);
-    if (newTs[1] !== timeSig[1]) {
-      setSubdivision(1);
-    }
+  const applyTempo = value => {
+    bpmRef.current = value;
+    setBpm(value);
+    setBpmDraft(String(value));
+  };
+  const commitTempo = () => {
+    const next = resolveTempo(bpmDraft, bpmRef.current);
+    const empty = bpmDraft.trim() === '';
+    const clamped = !empty && Number(bpmDraft) !== next;
+    applyTempo(next);
+    setTempoMessage(empty ? `空欄のため ${next} BPM を維持しました`
+      : clamped ? `設定範囲は30〜350 BPMです。${next} BPMに調整しました` : '');
+  };
+  const adjustTempo = delta => {
+    applyTempo(resolveTempo(String(resolveTempo(bpmDraft, bpmRef.current) + delta), bpmRef.current));
+    setTempoMessage('');
   };
 
-  const getTimingInfo = (ts, sub, currentBpm) => {
-    const beats = ts[0];
-    const noteVal = ts[1];
-    const isCompound = (noteVal === 8 && beats % 3 === 0); // e.g., 3/8, 6/8, 9/8, 12/8
-
-    let secondsPerStep;
-    let totalStepsInMeasure;
-    let mainBeatsCount;
-
-    if (isCompound) {
-      // In 6/8, 9/8, 12/8: BPM represents the dotted quarter note (♩.) tempo
-      mainBeatsCount = beats / 3;
-      if (sub === 1) { // ♩. (Dotted quarter note)
-        secondsPerStep = 60.0 / currentBpm;
-        totalStepsInMeasure = mainBeatsCount;
-      } else if (sub === 3) { // ♪♪♪ (Eighth notes / 3 per dotted quarter)
-        secondsPerStep = (60.0 / currentBpm) / 3.0;
-        totalStepsInMeasure = beats;
-      } else { // 16th notes (sub === 6)
-        secondsPerStep = (60.0 / currentBpm) / 6.0;
-        totalStepsInMeasure = beats * 2;
-      }
-    } else if (noteVal === 8) {
-      // For 5/8, 7/8: BPM represents the eighth note (♪) tempo
-      mainBeatsCount = beats;
-      if (sub === 1) {
-        secondsPerStep = 60.0 / currentBpm;
-        totalStepsInMeasure = beats;
-      } else if (sub === 3) { // Triplets inside eighth note
-        secondsPerStep = (60.0 / currentBpm) / 3.0;
-        totalStepsInMeasure = beats * 3;
-      } else {
-        secondsPerStep = (60.0 / currentBpm) / 2.0;
-        totalStepsInMeasure = beats * 2;
-      }
-    } else {
-      // For /4 time signatures (1/4, 2/4, 3/4, 4/4, 5/4, 6/4): BPM represents quarter note (♩) tempo
-      mainBeatsCount = beats;
-      if (sub === 1) { // ♩
-        secondsPerStep = 60.0 / currentBpm;
-        totalStepsInMeasure = beats;
-      } else if (sub === 2) { // ♫ (Eighth notes)
-        secondsPerStep = (60.0 / currentBpm) / 2.0;
-        totalStepsInMeasure = beats * 2;
-      } else if (sub === 3) { // 3連符 (Triplets per quarter note)
-        secondsPerStep = (60.0 / currentBpm) / 3.0;
-        totalStepsInMeasure = beats * 3;
-      } else { // ♬ (Sixteenth notes, sub === 4)
-        secondsPerStep = (60.0 / currentBpm) / 4.0;
-        totalStepsInMeasure = beats * 4;
-      }
-    }
-
-    return { secondsPerStep, totalStepsInMeasure, mainBeatsCount, isCompound };
+  const clearScheduled = () => {
+    nodesRef.current.forEach(({ osc, gain }) => {
+      try { osc.stop(); } catch { /* Already finished. */ }
+      osc.disconnect();
+      gain.disconnect();
+    });
+    nodesRef.current.clear();
+    visualsRef.current.forEach(id => clearTimeout(id));
+    visualsRef.current.clear();
+  };
+  const restartMeasure = () => {
+    clearScheduled();
+    currentStepRef.current = 0;
+    if (audioContextRef.current) nextNoteTimeRef.current = audioContextRef.current.currentTime + 0.05;
+  };
+  const handleTimeSigChange = ts => {
+    setTimeSig(ts);
+    timeSigRef.current = ts;
+    const sub = subdivisionsFor(ts).includes(subRef.current) ? subRef.current : 1;
+    setSubdivision(sub);
+    subRef.current = sub;
+    const group = groupsFor(ts)[0] || '';
+    setGrouping(group);
+    groupingRef.current = group;
+    restartMeasure();
+  };
+  const chooseSubdivision = sub => {
+    setSubdivision(sub);
+    subRef.current = sub;
+    restartMeasure();
+  };
+  const chooseGrouping = group => {
+    setGrouping(group);
+    groupingRef.current = group;
+    restartMeasure();
   };
 
   const scheduleNote = (stepNum, time) => {
     const audioCtx = audioContextRef.current;
-    if (!audioCtx) return;
-
-    const { totalStepsInMeasure, isCompound } = getTimingInfo(timeSigRef.current, subRef.current, bpmRef.current);
-    const stepInMeasure = stepNum % totalStepsInMeasure;
-    const isDownbeat = (stepInMeasure === 0);
-
-    let isMainBeat = false;
-    if (isCompound) {
-      if (subRef.current === 1) isMainBeat = true;
-      else if (subRef.current === 3) isMainBeat = (stepInMeasure % 3 === 0);
-      else if (subRef.current === 6) isMainBeat = (stepInMeasure % 6 === 0);
-    } else {
-      if (subRef.current === 1) isMainBeat = true;
-      else if (subRef.current === 2) isMainBeat = (stepInMeasure % 2 === 0);
-      else if (subRef.current === 3) isMainBeat = (stepInMeasure % 3 === 0);
-      else if (subRef.current === 4) isMainBeat = (stepInMeasure % 4 === 0);
-    }
-
+    const beat = beatFor(stepNum, timeSigRef.current, subRef.current, groupingRef.current);
+    const { stepInMeasure, isDownbeat, isMainBeat, groupAccent } = beat;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
-
-    let freq = 880;
-    let vol = 0.45;
-
-    if (isDownbeat && accentRef.current) {
-      freq = 1200;
-      vol = 0.85;
-    } else if (isMainBeat) {
-      freq = 880;
-      vol = 0.55;
-    } else {
-      freq = 600;
-      vol = 0.25;
-    }
-
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol, time);
+    const accented = accentRef.current && (isDownbeat || groupAccent);
+    osc.frequency.value = accented ? (isDownbeat ? 1200 : 1000) : isMainBeat ? 880 : 600;
+    gain.gain.setValueAtTime(accented ? 0.7 : isMainBeat ? 0.5 : 0.22, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-
+    const nodes = { osc, gain };
+    nodesRef.current.add(nodes);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+      nodesRef.current.delete(nodes);
+    };
     osc.start(time);
     osc.stop(time + 0.04);
-
-    const timeUntilNote = (time - audioCtx.currentTime) * 1000;
-    setTimeout(() => {
-      if (isPlayingRef.current) {
+    const session = sessionRef.current;
+    const id = setTimeout(() => {
+      visualsRef.current.delete(id);
+      if (isPlayingRef.current && session === sessionRef.current) {
         setCurrentStep(stepInMeasure);
-        if (isMainBeat) {
-          setPendulumAngle((prev) => (prev <= 0 ? 34 : -34));
-        }
+        if (isMainBeat) setPendulumAngle(previous => previous <= 0 ? 34 : -34);
       }
-    }, Math.max(0, timeUntilNote));
+    }, Math.max(0, (time - audioCtx.currentTime) * 1000));
+    visualsRef.current.add(id);
   };
 
-  const nextNote = () => {
-    const { secondsPerStep } = getTimingInfo(timeSigRef.current, subRef.current, bpmRef.current);
-    nextNoteTimeRef.current += secondsPerStep;
-    currentStepRef.current++;
-  };
-
-  const scheduler = useCallback(() => {
-    if (!audioContextRef.current) return;
-    while (nextNoteTimeRef.current < audioContextRef.current.currentTime + 0.1) {
-      scheduleNote(currentStepRef.current, nextNoteTimeRef.current);
-      nextNote();
+  const scheduler = () => {
+    if (!audioContextRef.current || !isPlayingRef.current) return;
+    const ctx = audioContextRef.current;
+    // Resume from the present after background throttling instead of playing a backlog.
+    if (nextNoteTimeRef.current < ctx.currentTime - 0.2) {
+      currentStepRef.current = 0;
+      nextNoteTimeRef.current = ctx.currentTime + 0.05;
+    }
+    while (nextNoteTimeRef.current < ctx.currentTime + 0.1) {
+      scheduleNote(currentStepRef.current++, nextNoteTimeRef.current);
+      nextNoteTimeRef.current += timingFor(timeSigRef.current, subRef.current, bpmRef.current).secondsPerStep;
     }
     timerIDRef.current = setTimeout(scheduler, 25);
-  }, []);
+  };
 
-  const togglePlay = () => {
-    if (isPlaying) {
+  const togglePlay = async () => {
+    if (isPlayingRef.current) {
+      sessionRef.current++;
       isPlayingRef.current = false;
       setIsPlaying(false);
-      if (timerIDRef.current) clearTimeout(timerIDRef.current);
+      clearTimeout(timerIDRef.current);
+      clearScheduled();
       setCurrentStep(-1);
       setPendulumAngle(0);
-    } else {
-      if (!audioContextRef.current) {
+      return;
+    }
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setIsStarting(true);
+    const session = ++sessionRef.current;
+    try {
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
       }
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume();
-      }
+      if (audioContextRef.current.state === 'suspended') await audioContextRef.current.resume();
+      if (session !== sessionRef.current) return;
+      commitTempo();
       isPlayingRef.current = true;
       setIsPlaying(true);
-      currentStepRef.current = 0;
-      nextNoteTimeRef.current = audioContextRef.current.currentTime + 0.05;
+      restartMeasure();
       setPendulumAngle(-34);
       scheduler();
+    } catch {
+      setTempoMessage('音を再生できませんでした。もう一度「再生」を押してください。');
+    } finally {
+      startingRef.current = false;
+      if (session === sessionRef.current) setIsStarting(false);
     }
   };
 
-  useEffect(() => {
-    return () => {
-      isPlayingRef.current = false;
-      if (timerIDRef.current) clearTimeout(timerIDRef.current);
-      if (audioContextRef.current) audioContextRef.current.close();
-    };
+  const tapTempo = event => {
+    const now = event.timeStamp;
+    const taps = tapTimesRef.current;
+    if (taps.length && now - taps[taps.length - 1] > 2500) taps.length = 0;
+    taps.push(now);
+    if (taps.length > 6) taps.shift();
+    setTapCount(taps.length);
+    if (taps.length > 1) {
+      const interval = (now - taps[0]) / (taps.length - 1);
+      applyTempo(resolveTempo(String(Math.round(60000 / interval)), bpmRef.current));
+      setTempoMessage('');
+    }
+    clearTimeout(tapResetRef.current);
+    tapResetRef.current = setTimeout(() => { tapTimesRef.current = []; setTapCount(0); }, 2500);
+  };
+
+  useEffect(() => () => {
+    sessionRef.current++;
+    isPlayingRef.current = false;
+    clearTimeout(timerIDRef.current);
+    clearTimeout(tapResetRef.current);
+    clearScheduled();
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') audioContextRef.current.close().catch(() => {});
   }, []);
 
-  const { totalStepsInMeasure } = getTimingInfo(timeSig, subdivision, bpm);
+  const { totalStepsInMeasure } = timingFor(timeSig, subdivision, bpm);
 
   return (
     <div className="hardware-card">
@@ -318,6 +321,11 @@ export default function MetronomeCard() {
         }}>決定</button>
       </div>
       <p className="tempo-feedback" role="status">{tempoMessage}</p>
+      <p className="beat-unit">BPMの基準：{beatUnit(timeSig)}</p>
+      <button type="button" className="tap-tempo" onClick={tapTempo}>
+        タップでテンポ設定{tapCount ? `（${tapCount}回）` : ''}
+      </button>
+      <p className="tuning-guide-hint">一定のリズムで2回以上タップ・設定はこの端末に記憶します</p>
 
       {/* Beat step indicators */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px', margin: '20px 0' }}>
@@ -355,8 +363,10 @@ export default function MetronomeCard() {
                 key={`${ts[0]}/${ts[1]}`}
                 onClick={() => handleTimeSigChange(ts)}
                 style={{
-                  width: '60px',
-                  height: '60px',
+                  width: '100%',
+                  maxWidth: '60px',
+                  aspectRatio: '1',
+                  minHeight: '44px',
                   borderRadius: '50%',
                   display: 'flex',
                   flexDirection: 'column',
@@ -381,185 +391,23 @@ export default function MetronomeCard() {
         </div>
       </div>
 
-      {/* Rhythmic Subdivision Options */}
-      <div style={{ backgroundColor: '#1e242e', border: '1px solid #30363d', padding: '14px', borderRadius: '20px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: '8px' }}>
-        {timeSig[1] === 8 ? (
-          /* For /8 signatures like 6/8: Dotted Quarter Note (♩.), 3 Eighths (♪♪♪), 6 Sixteenths */
-          <>
-            <button
-              onClick={() => setSubdivision(1)}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '14px',
-                border: subdivision === 1 ? '2px solid #10b981' : '1px solid #30363d',
-                backgroundColor: subdivision === 1 ? '#10b981/20' : '#2b333e',
-                color: '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-              title="付点4分音符（基本拍）"
-            >
-              <svg viewBox="0 0 50 50" style={{ width: '40px', height: '40px', margin: '0 auto' }}>
-                <ellipse cx="20" cy="38" rx="6" ry="4" transform="rotate(-20 20 38)" fill="currentColor" />
-                <line x1="25" y1="37" x2="25" y2="12" stroke="currentColor" strokeWidth="3" />
-                <circle cx="35" cy="36" r="3.5" fill="currentColor" />
-              </svg>
-            </button>
-
-            <button
-              onClick={() => setSubdivision(3)}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '14px',
-                border: subdivision === 3 ? '2px solid #10b981' : '1px solid #30363d',
-                backgroundColor: subdivision === 3 ? '#10b981/20' : '#2b333e',
-                color: '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-              title="8分音符 3連（各拍刻み）"
-            >
-              <svg viewBox="0 0 60 50" style={{ width: '44px', height: '40px', margin: '0 auto' }}>
-                <ellipse cx="12" cy="38" rx="5" ry="3.5" transform="rotate(-20 12 38)" fill="currentColor" />
-                <ellipse cx="28" cy="38" rx="5" ry="3.5" transform="rotate(-20 28 38)" fill="currentColor" />
-                <ellipse cx="44" cy="38" rx="5" ry="3.5" transform="rotate(-20 44 38)" fill="currentColor" />
-                <line x1="16" y1="37" x2="16" y2="15" stroke="currentColor" strokeWidth="3" />
-                <line x1="32" y1="37" x2="32" y2="15" stroke="currentColor" strokeWidth="3" />
-                <line x1="48" y1="37" x2="48" y2="15" stroke="currentColor" strokeWidth="3" />
-                <path d="M 15 15 L 49 15" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
-              </svg>
-            </button>
-
-            <button
-              onClick={() => setSubdivision(6)}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '14px',
-                border: subdivision === 6 ? '2px solid #10b981' : '1px solid #30363d',
-                backgroundColor: subdivision === 6 ? '#10b981/20' : '#2b333e',
-                color: '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-              title="16分音符 分割"
-            >
-              <svg viewBox="0 0 60 50" style={{ width: '44px', height: '40px', margin: '0 auto' }}>
-                <ellipse cx="14" cy="38" rx="5" ry="3.5" transform="rotate(-20 14 38)" fill="currentColor" />
-                <ellipse cx="26" cy="38" rx="5" ry="3.5" transform="rotate(-20 26 38)" fill="currentColor" />
-                <ellipse cx="38" cy="38" rx="5" ry="3.5" transform="rotate(-20 38 38)" fill="currentColor" />
-                <ellipse cx="50" cy="38" rx="5" ry="3.5" transform="rotate(-20 50 38)" fill="currentColor" />
-                <line x1="18" y1="37" x2="18" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <line x1="30" y1="37" x2="30" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <line x1="42" y1="37" x2="42" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <line x1="54" y1="37" x2="54" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <path d="M 17 15 L 55 15 M 17 22 L 55 22" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-              </svg>
-            </button>
-          </>
-        ) : (
-          /* For /4 signatures: Quarter Note (♩), 2 Eighths (♫), 3 Triplets (3連符), 4 Sixteenths (♬) */
-          <>
-            <button
-              onClick={() => setSubdivision(1)}
-              style={{
-                flex: 1,
-                padding: '8px',
-                borderRadius: '14px',
-                border: subdivision === 1 ? '2px solid #10b981' : '1px solid #30363d',
-                backgroundColor: subdivision === 1 ? '#10b981/20' : '#2b333e',
-                color: '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-              title="4分音符（♩）"
-            >
-              <svg viewBox="0 0 50 50" style={{ width: '36px', height: '36px', margin: '0 auto' }}>
-                <ellipse cx="22" cy="38" rx="6" ry="4" transform="rotate(-20 22 38)" fill="currentColor" />
-                <line x1="27" y1="37" x2="27" y2="12" stroke="currentColor" strokeWidth="3" />
-              </svg>
-            </button>
-
-            <button
-              onClick={() => setSubdivision(2)}
-              style={{
-                flex: 1,
-                padding: '8px',
-                borderRadius: '14px',
-                border: subdivision === 2 ? '2px solid #10b981' : '1px solid #30363d',
-                backgroundColor: subdivision === 2 ? '#10b981/20' : '#2b333e',
-                color: '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-              title="8分音符（♫）"
-            >
-              <svg viewBox="0 0 50 50" style={{ width: '36px', height: '36px', margin: '0 auto' }}>
-                <ellipse cx="16" cy="38" rx="5" ry="3.5" transform="rotate(-20 16 38)" fill="currentColor" />
-                <ellipse cx="36" cy="38" rx="5" ry="3.5" transform="rotate(-20 36 38)" fill="currentColor" />
-                <line x1="20" y1="37" x2="20" y2="15" stroke="currentColor" strokeWidth="3" />
-                <line x1="40" y1="37" x2="40" y2="15" stroke="currentColor" strokeWidth="3" />
-                <path d="M 19 15 L 41 15" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
-              </svg>
-            </button>
-
-            <button
-              onClick={() => setSubdivision(3)}
-              style={{
-                flex: 1,
-                padding: '8px',
-                borderRadius: '14px',
-                border: subdivision === 3 ? '2px solid #10b981' : '1px solid #30363d',
-                backgroundColor: subdivision === 3 ? '#10b981/20' : '#2b333e',
-                color: '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-              title="3連符（各拍3連）"
-            >
-              <svg viewBox="0 0 60 50" style={{ width: '42px', height: '36px', margin: '0 auto' }}>
-                <ellipse cx="12" cy="38" rx="5" ry="3.5" transform="rotate(-20 12 38)" fill="currentColor" />
-                <ellipse cx="28" cy="38" rx="5" ry="3.5" transform="rotate(-20 28 38)" fill="currentColor" />
-                <ellipse cx="44" cy="38" rx="5" ry="3.5" transform="rotate(-20 44 38)" fill="currentColor" />
-                <line x1="16" y1="37" x2="16" y2="18" stroke="currentColor" strokeWidth="3" />
-                <line x1="32" y1="37" x2="32" y2="18" stroke="currentColor" strokeWidth="3" />
-                <line x1="48" y1="37" x2="48" y2="18" stroke="currentColor" strokeWidth="3" />
-                <path d="M 15 18 L 49 18" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" />
-                <text x="30" y="13" textAnchor="middle" fontSize="13" fontWeight="900" fill="currentColor" fontFamily="serif">3</text>
-              </svg>
-            </button>
-
-            <button
-              onClick={() => setSubdivision(4)}
-              style={{
-                flex: 1,
-                padding: '8px',
-                borderRadius: '14px',
-                border: subdivision === 4 ? '2px solid #10b981' : '1px solid #30363d',
-                backgroundColor: subdivision === 4 ? '#10b981/20' : '#2b333e',
-                color: '#ffffff',
-                cursor: 'pointer',
-                transition: 'all 0.15s'
-              }}
-              title="16分音符（♬）"
-            >
-              <svg viewBox="0 0 60 50" style={{ width: '42px', height: '36px', margin: '0 auto' }}>
-                <ellipse cx="14" cy="38" rx="5" ry="3.5" transform="rotate(-20 14 38)" fill="currentColor" />
-                <ellipse cx="26" cy="38" rx="5" ry="3.5" transform="rotate(-20 26 38)" fill="currentColor" />
-                <ellipse cx="38" cy="38" rx="5" ry="3.5" transform="rotate(-20 38 38)" fill="currentColor" />
-                <ellipse cx="50" cy="38" rx="5" ry="3.5" transform="rotate(-20 50 38)" fill="currentColor" />
-                <line x1="18" y1="37" x2="18" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <line x1="30" y1="37" x2="30" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <line x1="42" y1="37" x2="42" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <line x1="54" y1="37" x2="54" y2="15" stroke="currentColor" strokeWidth="2.5" />
-                <path d="M 17 15 L 55 15 M 17 22 L 55 22" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-              </svg>
-            </button>
-          </>
-        )}
+      <div className="rhythm-options" role="group" aria-label="音の刻み">
+        {subdivisionsFor(timeSig).map(sub => {
+          const labels = isCompound(timeSig)
+            ? { 1: '♩. 基本拍', 3: '♪ 8分音符', 6: '♬ 16分音符' }
+            : isOddEighth(timeSig) ? { 1: '♪ 8分音符', 2: '♬ 16分音符' }
+            : { 1: '♩ 4分音符', 2: '♫ 8分音符', 3: '3連符', 4: '♬ 16分音符' };
+          return <button type="button" key={sub} aria-pressed={subdivision === sub}
+            onClick={() => chooseSubdivision(sub)}>{labels[sub]}</button>;
+        })}
       </div>
+      {groupsFor(timeSig).length > 0 && <div className="rhythm-grouping">
+        <span>拍のまとまり</span>
+        <div className="rhythm-options" role="group" aria-label="拍のまとまり">
+          {groupsFor(timeSig).map(group => <button key={group} type="button"
+            aria-pressed={grouping === group} onClick={() => chooseGrouping(group)}>{group}</button>)}
+        </div>
+      </div>}
 
       {/* Checkbox: 一拍目にアクセントをつける */}
       <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', color: '#f0f6fc', margin: '8px 4px 20px', textAlign: 'left', userSelect: 'none' }}>
@@ -575,6 +423,7 @@ export default function MetronomeCard() {
       {/* HUGE Play/Stop Button */}
       <button
         onClick={togglePlay}
+        disabled={isStarting}
         className="btn-green"
         style={{
           width: '100%',

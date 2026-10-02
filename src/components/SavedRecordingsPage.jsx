@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Share2, Trash2, Download } from 'lucide-react';
 
-export default function SavedRecordingsPage({ recordings, onDeleteRecording, onBackToStudio }) {
+export default function SavedRecordingsPage({ recordings, isDeleting, onDeleteRecording, onBackToStudio }) {
   const [shareStatus, setShareStatus] = useState(null);
 
   const extensionForMime = (mimeType, fallback = 'webm') => {
@@ -118,6 +118,8 @@ export default function SavedRecordingsPage({ recordings, onDeleteRecording, onB
 
                   <button
                     onClick={() => onDeleteRecording(rec.id)}
+                    disabled={isDeleting}
+                    aria-label={`${rec.title}を削除`}
                     className="text-gray-400 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors"
                     title="削除"
                   >

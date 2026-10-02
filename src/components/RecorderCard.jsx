@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Square } from 'lucide-react';
 
-export default function RecorderCard({ onSaveRecording, recordingsCount, onNavigateToLibrary }) {
+export default function RecorderCard({ onSaveRecording, onUnsavedChange, onNavigateToLibrary }) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [fileName, setFileName] = useState("");
   const [tempRecording, setTempRecording] = useState(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [recordingMessage, setRecordingMessage] = useState('');
+  const [replacePrompt, setReplacePrompt] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -18,6 +23,12 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
   const shouldAutoSaveRef = useRef(false);
   const recordingTimeRef = useRef(0);
   const fileNameRef = useRef("");
+  const draftRef = useRef(null);
+  const recordingStartedRef = useRef(0);
+  const navigateAfterStopRef = useRef(false);
+  const startingRef = useRef(false);
+  const savingRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const waveformHistoryRef = useRef([]);
 
@@ -27,12 +38,58 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startRecording = async () => {
+  const releaseAudio = () => {
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      audioCtxRef.current.close().catch(() => {});
+    }
+    audioCtxRef.current = null;
+  };
+
+  const saveDraft = async (draft, startNext = false) => {
+    if (savingRef.current || !draft) return false;
+    savingRef.current = true;
+    setIsSaving(true);
+    setRecordingMessage('');
+    try {
+      await onSaveRecording({ ...draft, title: fileNameRef.current.trim() || draft.title });
+      draftRef.current = null; // Its URL is now owned by the saved library.
+      setTempRecording(null);
+      setFileName('');
+      fileNameRef.current = '';
+      setReplacePrompt(false);
+      setRecordingMessage('端末に保存しました');
+      if (startNext) await startRecording(true);
+      return true;
+    } catch {
+      setRecordingMessage('端末に保存できませんでした。録音は保持しています。再試行するか、音声をダウンロードしてください。');
+      return false;
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
+    }
+  };
+
+  const startRecording = async (replaceConfirmed = false) => {
+    if (startingRef.current || mediaRecorderRef.current?.state === 'recording') return;
+    if (draftRef.current && !replaceConfirmed) { setReplacePrompt(true); return; }
+    if (replaceConfirmed && draftRef.current) {
+      URL.revokeObjectURL(draftRef.current.url);
+      draftRef.current = null;
+      setTempRecording(null);
+    }
+    startingRef.current = true;
+    setIsStarting(true);
+    setRecordingMessage('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
       streamRef.current = stream;
+      if (!mountedRef.current) { releaseAudio(); return; }
 
       const supportedFormat = [
         { mimeType: 'audio/mp4;codecs=mp4a.40.2', ext: 'm4a' },
@@ -42,7 +99,6 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       ].find(({ mimeType: candidate }) => MediaRecorder.isTypeSupported(candidate));
 
       const mimeType = supportedFormat?.mimeType || '';
-      const ext = supportedFormat?.ext || 'webm';
 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       mediaRecorderRef.current = recorder;
@@ -53,8 +109,15 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      recorder.onstop = () => {
-        const cleanMime = mimeType ? mimeType.split(';')[0] : 'audio/webm';
+      recorder.onstop = async () => {
+        if (!mountedRef.current) return;
+        // The browser can also stop recording (for example, if the mic ends).
+        recordingTimeRef.current = Math.floor((performance.now() - recordingStartedRef.current) / 1000);
+        setRecordingTime(recordingTimeRef.current);
+        releaseAudio();
+        setIsRecording(false);
+        const cleanMime = (recorder.mimeType || mimeType || 'audio/webm').split(';')[0];
+        const ext = cleanMime === 'audio/mp4' ? 'm4a' : cleanMime === 'audio/ogg' ? 'ogg' : 'webm';
         const blob = new Blob(audioChunksRef.current, { type: cleanMime });
         const url = URL.createObjectURL(blob);
         const defaultName = fileNameRef.current.trim() || `録音_${new Date().toLocaleDateString('ja-JP').replace(/\//g,'-')}_${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}).replace(':','')}`;
@@ -69,19 +132,24 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
           fileExt: ext
         };
 
-        if (shouldAutoSaveRef.current) {
-          onSaveRecording(newRecord);
-          setTempRecording(null);
-          setFileName("");
-          fileNameRef.current = "";
-          shouldAutoSaveRef.current = false;
-        } else {
-          setTempRecording(newRecord);
+        draftRef.current = newRecord;
+        setTempRecording(newRecord);
+        setIsFinalizing(false);
+        if (shouldAutoSaveRef.current) await saveDraft(newRecord);
+        shouldAutoSaveRef.current = false;
+        if (navigateAfterStopRef.current) {
+          navigateAfterStopRef.current = false;
+          onNavigateToLibrary();
         }
+      };
+      recorder.onerror = () => {
+        setRecordingMessage('録音中に問題が発生しました。停止して、音声を確認してください。');
       };
 
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       audioCtxRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      if (!mountedRef.current) { releaseAudio(); return; }
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 512;
       analyserRef.current = analyser;
@@ -96,32 +164,34 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       setTempRecording(null);
       setRecordingTime(0);
       recordingTimeRef.current = 0;
+      // This clock read runs after microphone permission in a user event, never in render.
+      // eslint-disable-next-line react-hooks/purity
+      recordingStartedRef.current = performance.now();
 
       timerIntervalRef.current = setInterval(() => {
-        setRecordingTime((prev) => {
-          recordingTimeRef.current = prev + 1;
-          return prev + 1;
-        });
+        const elapsed = Math.floor((performance.now() - recordingStartedRef.current) / 1000);
+        recordingTimeRef.current = elapsed;
+        setRecordingTime(elapsed);
       }, 1000);
 
       drawWaveform();
-    } catch (err) {
-      alert("マイクへのアクセスを許可してください。");
+    } catch {
+      releaseAudio();
+      setRecordingMessage('録音を開始できませんでした。ブラウザのマイク許可を確認して、もう一度お試しください。');
+    } finally {
+      startingRef.current = false;
+      if (mountedRef.current) setIsStarting(false);
     }
   };
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      recordingTimeRef.current = Math.floor((performance.now() - recordingStartedRef.current) / 1000);
+      setRecordingTime(recordingTimeRef.current);
+      setIsFinalizing(true);
       mediaRecorderRef.current.stop();
     }
-    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-    if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-    }
-    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-      audioCtxRef.current.close();
-    }
+    releaseAudio();
     setIsRecording(false);
   };
 
@@ -182,18 +252,40 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       return;
     }
     if (!tempRecording) return;
-    const finalName = fileName.trim() || tempRecording.title;
-    onSaveRecording({ ...tempRecording, title: finalName });
-    setTempRecording(null);
-    setFileName("");
-    fileNameRef.current = "";
+    saveDraft(tempRecording);
+  };
+
+  const navigateToLibrary = () => {
+    if (isStarting || isFinalizing || isSaving) return;
+    if (isRecording) {
+      navigateAfterStopRef.current = true;
+      stopRecording();
+    } else {
+      onNavigateToLibrary();
+    }
   };
 
   useEffect(() => {
+    onUnsavedChange(Boolean(isRecording || isFinalizing || isSaving || tempRecording));
+  }, [isRecording, isFinalizing, isSaving, tempRecording, onUnsavedChange]);
+
+  useEffect(() => {
+    if (!isRecording && !isFinalizing && !isSaving && !tempRecording) return;
+    const warn = event => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isRecording, isFinalizing, isSaving, tempRecording]);
+
+  useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-      if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
-      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+      mountedRef.current = false;
+      if (mediaRecorderRef.current?.state === 'recording') {
+        mediaRecorderRef.current.onstop = null;
+        mediaRecorderRef.current.stop();
+      }
+      releaseAudio();
+      if (draftRef.current?.url) URL.revokeObjectURL(draftRef.current.url);
     };
   }, []);
 
@@ -209,7 +301,8 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       </div>
 
       <button
-        onClick={isRecording ? stopRecording : startRecording}
+        onClick={() => isRecording ? stopRecording() : startRecording()}
+        disabled={isStarting || isFinalizing || isSaving}
         className={`btn-record-huge ${isRecording ? 'recording' : ''}`}
         title={isRecording ? "停止" : "録音"}
       >
@@ -219,6 +312,15 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
           <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#ffffff', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' }} />
         )}
       </button>
+      {(isStarting || isFinalizing || recordingMessage) && <p className="recorder-status" role="status">
+        {isStarting ? 'マイクを準備しています…' : isFinalizing ? '音声をまとめています…' : recordingMessage}
+      </p>}
+      {replacePrompt && <div className="app-notice" role="group" aria-label="未保存録音の確認">
+        <p>未保存の録音があります。次の録音の前に選んでください。</p>
+        <button type="button" className="tempo-done" disabled={isSaving} onClick={() => saveDraft(tempRecording, true)}>保存して録音</button>
+        <button type="button" className="tempo-done" disabled={isSaving} onClick={() => { setReplacePrompt(false); startRecording(true); }}>破棄して録音</button>
+        <button type="button" className="tempo-done" onClick={() => setReplacePrompt(false)}>戻る</button>
+      </div>}
 
       {/* Screen Box (Waveform) */}
       <div className="screen-box" style={{ height: '160px', margin: '20px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -238,6 +340,10 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
           </div>
         )}
       </div>
+      {tempRecording && <div className="draft-actions">
+        <span>未保存の録音</span>
+        <a className="tempo-done" href={tempRecording.url} download={`${fileName.trim() || tempRecording.title}.${tempRecording.fileExt}`}>音声をダウンロード</a>
+      </div>}
 
       {/* Filename Input */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', textAlign: 'left' }}>
@@ -251,7 +357,8 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
           }}
           placeholder={tempRecording ? tempRecording.title : ""}
           className="input-dark"
-          style={{ flexGrow: 1 }}
+          style={{ flexGrow: 1, minWidth: 0 }}
+          disabled={isSaving}
         />
       </div>
 
@@ -259,14 +366,15 @@ export default function RecorderCard({ onSaveRecording, recordingsCount, onNavig
       <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
         <button
           onClick={handleSave}
-          disabled={!isRecording && !tempRecording}
+          disabled={isStarting || isFinalizing || isSaving || (!isRecording && !tempRecording)}
           className="btn-green"
           style={{ flex: 1, opacity: (!isRecording && !tempRecording) ? 0.4 : 1, cursor: (!isRecording && !tempRecording) ? 'not-allowed' : 'pointer' }}
         >
-          保存
+          {isSaving ? '保存中…' : '保存'}
         </button>
         <button
-          onClick={onNavigateToLibrary}
+          onClick={navigateToLibrary}
+          disabled={isStarting || isFinalizing || isSaving}
           className="btn-green"
           style={{ flex: 1 }}
         >

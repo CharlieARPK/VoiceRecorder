@@ -1,4 +1,4 @@
-// Native IndexedDB wrapper for permanent audio blob storage
+// Keep the existing database/store so previously saved recordings remain available.
 
 const DB_NAME = 'PixelMusicStudioDB';
 const DB_VERSION = 1;
@@ -18,40 +18,34 @@ export const initDB = () => {
   });
 };
 
-export const saveRecordingToDB = async (recording) => {
+async function runTransaction(mode, action) {
   const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.put(recording);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, mode);
+      let result;
+      tx.oncomplete = () => resolve(result);
+      tx.onabort = () => reject(tx.error || new Error('保存処理が中断されました'));
+      tx.onerror = () => reject(tx.error || new Error('端末の保存領域を利用できません'));
+      const request = action(tx.objectStore(STORE_NAME));
+      request.onsuccess = () => { result = request.result; };
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export const saveRecordingToDB = recording => {
+  const stored = { ...recording };
+  delete stored.url;
+  return runTransaction('readwrite', store => store.put(stored));
 };
 
 export const getAllRecordingsFromDB = async () => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.getAll();
-    request.onsuccess = () => {
-      // Sort newest first
-      const results = request.result || [];
-      results.sort((a, b) => b.id - a.id);
-      resolve(results);
-    };
-    request.onerror = () => reject(request.error);
-  });
+  const records = await runTransaction('readonly', store => store.getAll());
+  return (records || []).sort((a, b) => b.id - a.id);
 };
 
-export const deleteRecordingFromDB = async (id) => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.delete(id);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
-};
+export const deleteRecordingFromDB = id =>
+  runTransaction('readwrite', store => store.delete(id));

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff } from 'lucide-react';
+import { readPreference, writePreference } from '../utils/preferences';
 
 const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
@@ -71,7 +72,17 @@ export default function TunerCard() {
   const [detectedNote, setDetectedNote] = useState(null);
   const [cents, setCents] = useState(0);
   const [a4Freq, setA4Freq] = useState(440);
+  const [a4Draft, setA4Draft] = useState('440');
+  const [tunerMessage, setTunerMessage] = useState('');
+  const [isStarting, setIsStarting] = useState(false);
   const [playingKey, setPlayingKey] = useState(null);
+  const a4Ref = useRef(440);
+  const lastSignalRef = useRef(0);
+  const hasSignalRef = useRef(false);
+  const lastAnalysisRef = useRef(-Infinity);
+  const listenRequestRef = useRef(0);
+  const toneRequestRef = useRef(0);
+  const listeningRef = useRef(false);
 
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
@@ -82,6 +93,27 @@ export default function TunerCard() {
   const toneOscillatorsRef = useRef([]);
   const toneGainRef = useRef(null);
   const toneTimerRef = useRef(null);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const stored = readPreference('a4', 440);
+      const value = Number.isFinite(stored) && stored >= 400 && stored <= 480 ? stored : 440;
+      a4Ref.current = value;
+      setA4Freq(value);
+      setA4Draft(String(value));
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  const commitA4 = () => {
+    const parsed = a4Draft.trim() === '' ? a4Ref.current : Number(a4Draft);
+    const value = Number.isFinite(parsed) ? Math.max(400, Math.min(480, Math.round(parsed * 10) / 10)) : a4Ref.current;
+    a4Ref.current = value;
+    setA4Freq(value);
+    setA4Draft(String(value));
+    writePreference('a4', value);
+    setTunerMessage(parsed !== value ? '基準周波数は400〜480 Hzで設定してください。' : '');
+  };
 
   function autoCorrelate(buf, sampleRate) {
     let SIZE = buf.length;
@@ -121,6 +153,16 @@ export default function TunerCard() {
       }
     }
     let T0 = maxpos;
+    if (T0 < 1 || T0 >= SIZE - 1 || c[0] <= 0) return -1;
+    // Normalize the overlapping samples: raw correlation shrinks at long lags
+    // and would incorrectly reject low guitar strings such as E2.
+    let leftEnergy = 0, rightEnergy = 0;
+    for (let i = 0; i < SIZE - T0; i++) {
+      leftEnergy += buf[i] * buf[i];
+      rightEnergy += buf[i + T0] * buf[i + T0];
+    }
+    const overlapEnergy = Math.sqrt(leftEnergy * rightEnergy);
+    if (overlapEnergy <= 0 || maxval / overlapEnergy < 0.8) return -1;
     let x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
     let a = (x1 + x3 - 2 * x2) / 2;
     let b = (x3 - x1) / 2;
@@ -129,20 +171,21 @@ export default function TunerCard() {
     return sampleRate / T0;
   }
 
-  function noteFromPitch(frequency, A4 = a4Freq) {
+  function noteFromPitch(frequency, A4 = a4Ref.current) {
     let noteNum = 12 * (Math.log(frequency / A4) / Math.log(2));
     return Math.round(noteNum) + 69;
   }
 
-  function frequencyFromNoteNumber(note, A4 = a4Freq) {
+  function frequencyFromNoteNumber(note, A4 = a4Ref.current) {
     return A4 * Math.pow(2, (note - 69) / 12);
   }
 
-  function centsOffFromPitch(frequency, note, A4 = a4Freq) {
+  function centsOffFromPitch(frequency, note, A4 = a4Ref.current) {
     return Math.floor(1200 * Math.log(frequency / frequencyFromNoteNumber(note, A4)) / Math.log(2));
   }
 
   const stopReferenceTone = () => {
+    toneRequestRef.current++;
     if (toneTimerRef.current) {
       clearTimeout(toneTimerRef.current);
       toneTimerRef.current = null;
@@ -169,6 +212,7 @@ export default function TunerCard() {
     if (!ToneAudioContext) return;
 
     stopReferenceTone();
+    const request = toneRequestRef.current;
     setPlayingKey(null);
 
     if (!toneAudioContextRef.current || toneAudioContextRef.current.state === 'closed') {
@@ -176,7 +220,13 @@ export default function TunerCard() {
     }
 
     const audioCtx = toneAudioContextRef.current;
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    try {
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+    } catch {
+      setTunerMessage('基準音を再生できませんでした。もう一度タップしてください。');
+      return;
+    }
+    if (request !== toneRequestRef.current || audioCtx.state === 'closed') return;
 
     const now = audioCtx.currentTime;
     const duration = 1;
@@ -211,11 +261,21 @@ export default function TunerCard() {
     }, (duration + 0.08) * 1000);
   };
 
-  const toggleListening = async () => {
-    if (isListening) {
+  const stopListening = () => {
+      listenRequestRef.current++;
+      listeningRef.current = false;
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
-      if (audioContextRef.current) audioContextRef.current.close();
+      mediaStreamRef.current = null;
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+      analyserRef.current = null;
+      hasSignalRef.current = false;
+  };
+
+  const toggleListening = async () => {
+    if (listeningRef.current) {
+      stopListening();
       setIsListening(false);
       setPitch(null);
       setNoteName("--");
@@ -223,15 +283,25 @@ export default function TunerCard() {
       setCents(0);
       return;
     }
+    if (isStarting) return;
+    setIsStarting(true);
+    setTunerMessage('');
+    const request = ++listenRequestRef.current;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false }
       });
+      if (request !== listenRequestRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
       mediaStreamRef.current = stream;
 
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       audioContextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      if (request !== listenRequestRef.current) return;
 
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 2048;
@@ -242,19 +312,34 @@ export default function TunerCard() {
 
       bufferRef.current = new Float32Array(analyser.fftSize);
       setIsListening(true);
-      updateTuner();
-    } catch (err) {
-      alert("マイクへのアクセスを許可してください。");
+      listeningRef.current = true;
+      lastAnalysisRef.current = -Infinity;
+      lastSignalRef.current = 0;
+      animationFrameRef.current = requestAnimationFrame(updateTuner);
+    } catch {
+      if (request === listenRequestRef.current) {
+        stopListening();
+        setTunerMessage('チューナーを開始できませんでした。ブラウザのマイク許可を確認してください。');
+      }
+    } finally {
+      if (request === listenRequestRef.current || !listeningRef.current) setIsStarting(false);
     }
   };
 
-  const updateTuner = () => {
+  const updateTuner = (now) => {
     if (!analyserRef.current || !bufferRef.current || !audioContextRef.current) return;
+    if (now - lastAnalysisRef.current < 50) {
+      animationFrameRef.current = requestAnimationFrame(updateTuner);
+      return;
+    }
+    lastAnalysisRef.current = now;
 
     analyserRef.current.getFloatTimeDomainData(bufferRef.current);
     const ac = autoCorrelate(bufferRef.current, audioContextRef.current.sampleRate);
 
-    if (ac !== -1) {
+    if (Number.isFinite(ac) && ac >= 60 && ac <= 2000) {
+      lastSignalRef.current = now;
+      hasSignalRef.current = true;
       const frequency = ac;
       const noteNum = noteFromPitch(frequency);
       const note = noteStrings[noteNum % 12];
@@ -264,6 +349,12 @@ export default function TunerCard() {
       setNoteName(note || "--");
       setDetectedNote(noteNum);
       setCents(centDiff);
+    } else if (hasSignalRef.current && now - lastSignalRef.current >= 300) {
+      hasSignalRef.current = false;
+      setPitch(null);
+      setNoteName('--');
+      setDetectedNote(null);
+      setCents(0);
     }
 
     animationFrameRef.current = requestAnimationFrame(updateTuner);
@@ -271,8 +362,7 @@ export default function TunerCard() {
 
   useEffect(() => {
     return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      stopListening();
       stopReferenceTone();
       if (toneAudioContextRef.current && toneAudioContextRef.current.state !== 'closed') {
         toneAudioContextRef.current.close();
@@ -294,13 +384,16 @@ export default function TunerCard() {
         <h2 className="card-title">チューナー</h2>
         <button
           onClick={toggleListening}
+          disabled={isStarting}
           className="btn-green"
           style={{ padding: '8px 16px', fontSize: '13px' }}
         >
           {isListening ? <MicOff style={{ width: '16px', height: '16px' }} /> : <Mic style={{ width: '16px', height: '16px' }} />}
-          <span>{isListening ? "停止" : "起動"}</span>
+          <span>{isStarting ? "準備中…" : isListening ? "停止" : "起動"}</span>
         </button>
       </div>
+      {isListening && !pitch && <p className="recorder-status">音を待っています…</p>}
+      {tunerMessage && <p className="recorder-status" role="status">{tunerMessage}</p>}
 
       {/* Screen Box with exact SVG viewBox so layout NEVER overlaps or shifts */}
       <div className="screen-box" style={{ padding: '24px 16px', marginBottom: '20px' }}>
@@ -399,14 +492,25 @@ export default function TunerCard() {
       {/* Reference frequency */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '15px', fontWeight: 'bold' }}>
         <input
-          type="number"
-          value={a4Freq}
-          onChange={(e) => setA4Freq(Number(e.target.value) || 440)}
+          type="text"
+          inputMode="decimal"
+          enterKeyHint="done"
+          aria-label="A4基準周波数（400〜480 Hz）"
+          value={a4Draft}
+          onFocus={event => event.currentTarget.select()}
+          onChange={event => {
+            const text = event.target.value.normalize('NFKC');
+            if (/^[0-9]*[.]?[0-9]*$/.test(text)) setA4Draft(text);
+          }}
+          onBlur={commitA4}
+          onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}
           className="input-dark"
           style={{ width: '80px', textAlign: 'center', fontWeight: 'bold' }}
         />
         <span>Hz</span>
+        <button type="button" className="tempo-done" onClick={commitA4}>決定</button>
       </div>
+      <p className="tuning-guide-hint">A4基準 {a4Freq} Hz・設定はこの端末に記憶します</p>
     </div>
   );
 }

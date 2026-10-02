@@ -43,6 +43,167 @@ body {
   user-select: none;
 }
 
+[hidden] {
+  display: none !important;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.app-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid #645128;
+  border-radius: 12px;
+  background: #282417;
+  color: #f5dea6;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.recorder-status {
+  color: #d1d5db;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+
+.draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: #f5dea6;
+}
+
+.draft-actions a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.awake-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #30363d;
+  border-radius: 14px;
+  background: #161b22;
+  padding: 10px 12px;
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.awake-bar small {
+  display: block;
+  margin-top: 3px;
+  color: #9ca3af;
+}
+
+.awake-bar button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #4b5563;
+  border-radius: 8px;
+  background: #21262d;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.awake-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #6e7681;
+}
+
+.awake-dot.active {
+  background: #10b981;
+}
+
+.beat-unit {
+  color: #d1d5db;
+  font-size: 13px;
+  margin: 12px 0;
+}
+
+.tap-tempo {
+  min-height: 48px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #3b7660;
+  border-radius: 12px;
+  background: #183e2f;
+  color: #b0f5cf;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.rhythm-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #1e242e;
+  margin-bottom: 12px;
+}
+
+.rhythm-options button {
+  flex: 1 0 44px;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid #4b5563;
+  border-radius: 10px;
+  background: #2b333e;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.rhythm-options button[aria-pressed="true"] {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.rhythm-grouping > span {
+  display: block;
+  color: #9ca3af;
+  font-size: 13px;
+  margin: 8px;
+}
+
+@media (max-width: 380px) {
+  .hardware-card {
+    padding: 16px;
+  }
+  .hardware-card .btn-green {
+    padding: 12px !important;
+    font-size: 13px !important;
+  }
+  .tuning-string {
+    min-height: 44px;
+  }
+}
+
 /* Minimalist Hardware Card */
 .hardware-card {
   background-color: var(--bg-card);
